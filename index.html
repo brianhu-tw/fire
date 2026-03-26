@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>幾歲能退休？</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏖️</text></svg>">
 
 <!-- Open Graph -->
 <meta property="og:type" content="website">
@@ -188,6 +189,51 @@
   }
   .btn:hover { opacity: 0.85; }
 
+  .share-wrap {
+    text-align: center;
+    margin-bottom: 2rem;
+  }
+  .btn-share {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    background: var(--card);
+    color: var(--text-muted);
+    border: 1px solid var(--border);
+    padding: 0.5rem 1.2rem;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: background 0.2s, color 0.2s;
+  }
+  .btn-share:hover { background: var(--card-hover); color: var(--text); }
+  .share-hint {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    margin-top: 0.4rem;
+  }
+
+  .toast {
+    position: fixed;
+    bottom: 2rem;
+    left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    background: var(--card-hover);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.6rem 1.2rem;
+    font-size: 0.85rem;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s, transform 0.3s;
+    z-index: 100;
+  }
+  .toast.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+
   /* ── Advice cards ── */
   .advice-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem; }
   .advice-card {
@@ -356,6 +402,13 @@
 <!-- ── Key Metrics ── -->
 <div class="metrics" id="metrics"></div>
 
+<div class="share-wrap">
+  <button class="btn-share" onclick="shareURL()">&#128279; 分享這組試算給朋友</button>
+  <div class="share-hint">連結會包含你填的所有數字（含資產與收支）</div>
+</div>
+
+<div class="toast" id="toast"></div>
+
 <section class="notes">
   <h2><span class="icon">&#9432;</span> 關於此計算</h2>
   <div class="notes-grid">
@@ -419,8 +472,9 @@ function getNumericValue(id) {
 // ── Field lists ──
 const MONEY_FIELDS = ["p_assets", "p_income", "p_expenses"];
 
-// ── localStorage persistence ──
+// ── localStorage + URL persistence ──
 const ALL_FIELDS = ["p_age", "p_assets", "p_income", "p_expenses", "p_return", "p_inflation"];
+const URL_KEYS = { p_age: "age", p_assets: "assets", p_income: "income", p_expenses: "expenses", p_return: "return", p_inflation: "inflation" };
 const LS_KEY = "fire_params";
 function saveParams() {
   const data = {};
@@ -428,12 +482,48 @@ function saveParams() {
   try { localStorage.setItem(LS_KEY, JSON.stringify(data)); } catch(e) {}
 }
 function restoreParams() {
+  const sp = new URLSearchParams(window.location.search);
+  const hasURL = ALL_FIELDS.some(id => sp.has(URL_KEYS[id]));
+  if (hasURL) {
+    ALL_FIELDS.forEach(id => {
+      const v = sp.get(URL_KEYS[id]);
+      if (v != null) {
+        const el = document.getElementById(id);
+        el.value = MONEY_FIELDS.includes(id) ? addCommas(v) : v;
+      }
+    });
+    window.history.replaceState({}, "", window.location.pathname);
+    saveParams();
+    return;
+  }
   try {
     const raw = localStorage.getItem(LS_KEY);
     if (!raw) return;
     const data = JSON.parse(raw);
     ALL_FIELDS.forEach(id => { if (data[id] != null) document.getElementById(id).value = data[id]; });
   } catch(e) {}
+}
+
+function shareURL() {
+  const params = new URLSearchParams();
+  ALL_FIELDS.forEach(id => {
+    const el = document.getElementById(id);
+    const val = MONEY_FIELDS.includes(id) ? stripCommas(el.value) : el.value;
+    params.set(URL_KEYS[id], val);
+  });
+  const url = window.location.origin + window.location.pathname + "?" + params.toString();
+  navigator.clipboard.writeText(url).then(() => {
+    showToast("已複製連結！");
+  }, () => {
+    showToast("無法複製，請手動複製網址列");
+  });
+}
+
+function showToast(msg) {
+  const el = document.getElementById("toast");
+  el.textContent = msg;
+  el.classList.add("show");
+  setTimeout(() => el.classList.remove("show"), 2000);
 }
 
 // Auto-format money fields on input
@@ -930,7 +1020,7 @@ function updateConclusion(earliest) {
   const el = document.getElementById("conclusion");
   if (earliest !== null) {
     el.className = "conclusion";
-    el.innerHTML = `以基準報酬率估算，最快 <strong>${earliest} 歲</strong> 就能退休`;
+    el.innerHTML = `照這個節奏，最快 <strong>${earliest} 歲</strong> 就能退休`;
   } else {
     el.className = "conclusion warn";
     el.innerHTML = `以目前條件，可能要工作到⋯⋯很久以後。調整一下數字試試？`;
