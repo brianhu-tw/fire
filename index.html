@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>退休規劃分析</title>
+<title>幾歲能退休？</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 <style>
   :root {
@@ -201,6 +201,65 @@
     font-size: 0.8rem;
     border-top: 1px solid var(--border);
   }
+
+  /* ── Tooltip ── */
+  .info-tip {
+    position: relative;
+    display: inline-block;
+    cursor: help;
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    margin-left: 0.3rem;
+    vertical-align: middle;
+  }
+  .info-tip::after {
+    content: attr(data-tip);
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--card-hover);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.6rem 0.8rem;
+    font-size: 0.78rem;
+    line-height: 1.5;
+    white-space: normal;
+    width: max-content;
+    max-width: 280px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s;
+    z-index: 10;
+  }
+  .info-tip:hover::after {
+    opacity: 1;
+  }
+
+  /* ── Notes ── */
+  .notes { margin-bottom: 2rem; }
+  .notes-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 1rem;
+  }
+  .note-item {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.25rem;
+  }
+  .note-item h4 {
+    font-size: 0.9rem;
+    font-weight: 600;
+    margin-bottom: 0.4rem;
+  }
+  .note-item p {
+    font-size: 0.82rem;
+    color: var(--text-muted);
+    line-height: 1.6;
+  }
 </style>
 </head>
 <body>
@@ -208,13 +267,13 @@
 <div class="container">
 
 <header>
-  <h1>退休規劃分析</h1>
-  <p>輸入你的收支條件，看看幾歲能財務自由</p>
+  <h1>幾歲能退休？</h1>
+  <p>填幾個數字，算算你的退休時間表</p>
 </header>
 
 <!-- ── Parameter Panel ── -->
 <section>
-  <h2><span class="icon">&#9881;</span> 你的基本資料</h2>
+  <h2><span class="icon">&#9881;</span> 你的現況</h2>
   <div class="params">
     <div class="param-grid">
       <div class="param-group">
@@ -223,27 +282,27 @@
         <div class="error-msg" id="err_age"></div>
       </div>
       <div class="param-group">
-        <label>可投資資產 (NT$)</label>
+        <label>現有資產 (NT$)<span class="info-tip" data-tip="目前可以拿來投資的總金額，包含存款、股票、基金等">&#9432;</span></label>
         <input type="text" inputmode="numeric" id="p_assets" value="0">
         <div class="error-msg" id="err_assets"></div>
       </div>
       <div class="param-group">
-        <label>年收入 (NT$)</label>
-        <input type="text" inputmode="numeric" id="p_income" value="1,000,000">
+        <label>年收入 (NT$)<span class="info-tip" data-tip="預設為 113 年台灣薪資中位數 54.6 萬（主計總處）">&#9432;</span></label>
+        <input type="text" inputmode="numeric" id="p_income" value="546,000">
         <div class="error-msg" id="err_income"></div>
       </div>
       <div class="param-group">
-        <label>年支出 (NT$)</label>
-        <input type="text" inputmode="numeric" id="p_expenses" value="800,000">
+        <label>年支出 (NT$)<span class="info-tip" data-tip="預設為 113 年台灣每人消費支出約 32 萬（主計總處家庭收支調查）">&#9432;</span></label>
+        <input type="text" inputmode="numeric" id="p_expenses" value="320,000">
         <div class="error-msg" id="err_expenses"></div>
       </div>
       <div class="param-group">
-        <label>預期年報酬率 (%)</label>
+        <label>年報酬率 (%)<span class="info-tip" data-tip="投資組合的年化報酬率。台股大盤長期約 8-10%，全球股市約 7-9%">&#9432;</span></label>
         <input type="number" id="p_return" value="7" step="0.5" min="1" max="15">
         <div class="error-msg" id="err_return"></div>
       </div>
       <div class="param-group">
-        <label>通膨率 (%)</label>
+        <label>通膨率 (%)<span class="info-tip" data-tip="物價每年上漲的幅度。台灣近年約 2-3%">&#9432;</span></label>
         <input type="number" id="p_inflation" value="3" step="0.5" min="0" max="10">
         <div class="error-msg" id="err_inflation"></div>
       </div>
@@ -253,7 +312,7 @@
 
 <!-- ── Chart 3: Sensitivity ── -->
 <section>
-  <h2><span class="icon">&#128202;</span> 退休資產模擬器</h2>
+  <h2><span class="icon">&#128202;</span> 資產模擬</h2>
   <div class="chart-grid">
     <div class="chart-box">
       <div class="desc" id="c3Summary"></div>
@@ -268,9 +327,39 @@
 <!-- ── Key Metrics ── -->
 <div class="metrics" id="metrics"></div>
 
+<section class="notes">
+  <h2><span class="icon">&#9432;</span> 關於此計算</h2>
+  <div class="notes-grid">
+    <div class="note-item">
+      <h4>所有金額皆為「實質」購買力</h4>
+      <p>圖表已扣除通膨影響。例如 30 年後的 1,000 萬，以今天的購買力來看可能只值 400 多萬。這裡顯示的就是那個 400 多萬——你實際感受到的價值。</p>
+    </div>
+    <div class="note-item">
+      <h4>收入也會隨通膨成長</h4>
+      <p>模擬中假設你的收入會跟著物價調整（例如加薪），支出也是。所以退休前每年實際能存下的金額大致不變。</p>
+    </div>
+    <div class="note-item">
+      <h4>退休後沒收入，資產會加速縮水</h4>
+      <p>退休後只出不進，加上通膨持續侵蝕，這就是為什麼圖表在退休後通常會往下彎。</p>
+    </div>
+    <div class="note-item">
+      <h4>FIRE 與 25 倍法則</h4>
+      <p>FIRE（Financial Independence, Retire Early）社群常用的經驗法則：當你的資產達到年支出的 25 倍，每年提領 4% 就能覆蓋生活費，理論上資產不會耗盡。</p>
+    </div>
+    <div class="note-item">
+      <h4>悲觀 / 基準 / 樂觀</h4>
+      <p>三條線分別是你設定的報酬率 ±2%。例如設 7%，就會看到 5%、7%、9% 三種情境，幫你感受一下報酬率波動的影響。</p>
+    </div>
+    <div class="note-item">
+      <h4>平均壽命 80 歲</h4>
+      <p>「最快幾歲能退休」的計算是以資產撐到 80 歲為標準。圖表則模擬到 100 歲，讓你看得更遠。</p>
+    </div>
+  </div>
+</section>
+
 <footer>
-  <p>此分析僅供參考，不構成投資建議。實際報酬率會有波動，請依個人風險承受度調整。</p>
-  <p style="margin-top:0.3rem;">Retirement Planning Tool &copy; 2026</p>
+  <p>此分析僅供參考，不構成投資建議。實際報酬率會波動，當個方向參考就好。</p>
+  <p style="margin-top:0.3rem;">幾歲能退休？ &copy; 2026</p>
 </footer>
 
 </div>
@@ -297,6 +386,24 @@ function addCommas(n) {
 function getNumericValue(id) {
   return +stripCommas(document.getElementById(id).value);
 }
+
+// ── localStorage persistence ──
+const ALL_FIELDS = ["p_age", "p_assets", "p_income", "p_expenses", "p_return", "p_inflation"];
+const LS_KEY = "fire_params";
+function saveParams() {
+  const data = {};
+  ALL_FIELDS.forEach(id => data[id] = document.getElementById(id).value);
+  try { localStorage.setItem(LS_KEY, JSON.stringify(data)); } catch(e) {}
+}
+function restoreParams() {
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (!raw) return;
+    const data = JSON.parse(raw);
+    ALL_FIELDS.forEach(id => { if (data[id] != null) document.getElementById(id).value = data[id]; });
+  } catch(e) {}
+}
+restoreParams();
 
 // Auto-format money fields on input
 const MONEY_FIELDS = ["p_assets", "p_income", "p_expenses"];
@@ -665,7 +772,7 @@ function updateC3Summary(p) {
   el.innerHTML = `假設 <b>${c3IncAge} 歲</b>開始工作、年收 <b>${c3IncAmount} 萬</b>，`
     + `<b>${c3RetireAge} 歲</b>退休（工作 ${Math.max(0, workYears)} 年），`
     + `年支出 <b>${(p.expenses/1e4).toFixed(0)} 萬</b>，`
-    + `以下為不同報酬率下的資產走勢（實質購買力）`;
+    + `來看看你的錢夠不夠花`;
 }
 
 function c3UpdateData(chart, p, alsoUpdateOthers) {
@@ -685,9 +792,9 @@ function c3UpdateData(chart, p, alsoUpdateOthers) {
     const fireRatio = p.expenses > 0 ? (totalLiquid(p) / p.expenses).toFixed(1) : "∞";
     const incLabel = currentAge() >= c3IncAge ? "收入 − 支出" : `${c3IncAge}歲前無收入`;
     document.getElementById("metrics").innerHTML = `
-      <div class="metric-card"><div class="label">投資資產總計</div><div class="value">NT$ ${(totalLiquid(p)/1e4).toFixed(0)} 萬</div><div class="sub">可投資資產</div></div>
-      <div class="metric-card"><div class="label">年可投資金額</div><div class="value ${investable >= 0 ? 'green' : 'red'}">NT$ ${(investable/1e4).toFixed(1)} 萬</div><div class="sub">${incLabel}</div></div>
-      <div class="metric-card"><div class="label">財務自由倍數</div><div class="value green">${fireRatio} 倍</div><div class="sub">達 25 倍即可考慮退休</div></div>
+      <div class="metric-card"><div class="label">現有資產</div><div class="value">NT$ ${(totalLiquid(p)/1e4).toFixed(0)} 萬</div><div class="sub">可投資的錢</div></div>
+      <div class="metric-card"><div class="label">每年可存下</div><div class="value ${investable >= 0 ? 'green' : 'red'}">NT$ ${(investable/1e4).toFixed(1)} 萬</div><div class="sub">${incLabel}</div></div>
+      <div class="metric-card"><div class="label">財務自由倍數 <span class="info-tip" data-tip="又稱 FIRE 倍數。當資產 = 年支出 × 25，每年提領 4% 即可覆蓋支出（4% 法則）">&#9432;</span></div><div class="value green">${fireRatio} 倍</div><div class="sub">到 25 倍就差不多了</div></div>
     `;
     updateConclusion(earliest);
   }
@@ -789,10 +896,10 @@ function updateConclusion(earliest) {
   const el = document.getElementById("conclusion");
   if (earliest !== null) {
     el.className = "conclusion";
-    el.innerHTML = `以基準報酬率計算，資產足以支撐到 ${AVG_LIFESPAN} 歲，最早可 <strong>${earliest} 歲</strong>退休`;
+    el.innerHTML = `以基準報酬率估算，最快 <strong>${earliest} 歲</strong> 就能退休`;
   } else {
     el.className = "conclusion warn";
-    el.innerHTML = `以目前條件，到 100 歲前<strong>無法達成財務自由</strong>`;
+    el.innerHTML = `以目前條件，可能要工作到⋯⋯很久以後。調整一下數字試試？`;
   }
 }
 
@@ -863,9 +970,9 @@ function recalculate() {
 
   // ── Metrics ──
   document.getElementById("metrics").innerHTML = `
-    <div class="metric-card"><div class="label">投資資產總計</div><div class="value">NT$ ${(totalLiquid(p)/1e4).toFixed(0)} 萬</div><div class="sub">可投資資產</div></div>
-    <div class="metric-card"><div class="label">年可投資金額</div><div class="value ${investable >= 0 ? 'green' : 'red'}">NT$ ${(investable/1e4).toFixed(1)} 萬</div><div class="sub">${incLabel}</div></div>
-    <div class="metric-card"><div class="label">財務自由倍數</div><div class="value green">${fireRatio} 倍</div><div class="sub">達 25 倍即可考慮退休</div></div>
+    <div class="metric-card"><div class="label">現有資產</div><div class="value">NT$ ${(totalLiquid(p)/1e4).toFixed(0)} 萬</div><div class="sub">可投資的錢</div></div>
+    <div class="metric-card"><div class="label">每年可存下</div><div class="value ${investable >= 0 ? 'green' : 'red'}">NT$ ${(investable/1e4).toFixed(1)} 萬</div><div class="sub">${incLabel}</div></div>
+    <div class="metric-card"><div class="label">財務自由倍數 <span class="info-tip" data-tip="又稱 FIRE 倍數。當資產 = 年支出 × 25，每年提領 4% 即可覆蓋支出（4% 法則）">&#9432;</span></div><div class="value green">${fireRatio} 倍</div><div class="sub">到 25 倍就差不多了</div></div>
   `;
 
   // ── Conclusion ──
@@ -879,6 +986,7 @@ function recalculate() {
 // Auto-update on any parameter change
 document.querySelectorAll(".params input").forEach(input => {
   input.addEventListener("input", () => {
+    saveParams();
     clearTimeout(debounceTimer);
     debounceTimer = setTimeout(recalculate, 300);
   });
