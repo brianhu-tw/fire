@@ -1,0 +1,892 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>退休規劃分析</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #0f1117;
+    --card: #1a1d2e;
+    --card-hover: #222640;
+    --border: #2a2e45;
+    --text: #e4e4e7;
+    --text-muted: #9ca3af;
+    --accent: #6366f1;
+    --accent2: #f59e0b;
+    --green: #22c55e;
+    --red: #ef4444;
+    --pink: #ec4899;
+    --cyan: #06b6d4;
+    --purple: #a78bfa;
+    --orange: #f97316;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang TC", "Microsoft JhengHei", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+  }
+
+  .container { max-width: 1280px; margin: 0 auto; padding: 2rem 1.5rem; }
+
+  /* ── Header ── */
+  header {
+    text-align: center;
+    padding: 3rem 0 1rem;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 2rem;
+  }
+  header h1 { font-size: 2rem; font-weight: 700; letter-spacing: 0.05em; }
+  header p { color: var(--text-muted); margin-top: 0.5rem; font-size: 0.95rem; }
+
+  /* ── Metric Cards ── */
+  .metrics {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 1rem;
+    margin-bottom: 2.5rem;
+  }
+  .metric-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.25rem 1.5rem;
+    transition: background 0.2s;
+  }
+  .metric-card:hover { background: var(--card-hover); }
+  .metric-card .label { font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em; }
+  .metric-card .value { font-size: 1.6rem; font-weight: 700; margin-top: 0.25rem; }
+  .metric-card .sub { font-size: 0.8rem; color: var(--text-muted); margin-top: 0.2rem; }
+  .metric-card .value.green { color: var(--green); }
+  .metric-card .value.accent { color: var(--accent); }
+  .metric-card .value.amber { color: var(--accent2); }
+  .metric-card .value.pink { color: var(--pink); }
+
+  /* ── Sections ── */
+  section { margin-bottom: 3rem; }
+  section h2 {
+    font-size: 1.3rem;
+    font-weight: 600;
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  section h2 .icon { font-size: 1.1rem; }
+
+  /* ── Chart containers ── */
+  .chart-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 2rem;
+  }
+  .chart-box {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.5rem;
+  }
+  .chart-box h3 {
+    font-size: 1rem;
+    font-weight: 600;
+    margin-bottom: 0.3rem;
+  }
+  .chart-box .desc {
+    font-size: 0.82rem;
+    color: var(--text-muted);
+    margin-bottom: 1rem;
+  }
+  .chart-box canvas { width: 100% !important; }
+  .chart-wrap { position: relative; width: 100%; }
+  .chart-wrap.full { height: 500px; }
+  .chart-wrap.half { height: 420px; }
+
+  .two-col { grid-template-columns: 1fr 1fr; }
+  @media (max-width: 900px) { .two-col { grid-template-columns: 1fr; } }
+
+  /* ── Parameter Panel ── */
+  .params {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+  }
+  .params h3 { font-size: 1rem; margin-bottom: 1rem; }
+  .param-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+  }
+  .param-group label {
+    display: block;
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    margin-bottom: 0.3rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .param-group input, .param-group select {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 0.5rem 0.75rem;
+    border-radius: 8px;
+    font-size: 0.95rem;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .param-group input:focus, .param-group select:focus { border-color: var(--accent); }
+  .param-group input.invalid { border-color: var(--red); background: rgba(239,68,68,0.06); }
+  .param-group .error-msg { font-size: 0.72rem; color: var(--red); margin-top: 0.25rem; min-height: 1rem; }
+
+  .btn {
+    display: inline-block;
+    background: var(--accent);
+    color: white;
+    border: none;
+    padding: 0.6rem 1.5rem;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    margin-top: 1rem;
+    transition: opacity 0.2s;
+  }
+  .btn:hover { opacity: 0.85; }
+
+
+  /* ── Advice cards ── */
+  .advice-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem; }
+  .advice-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.25rem;
+    border-left: 3px solid var(--accent);
+  }
+  .advice-card h4 { font-size: 0.95rem; font-weight: 600; margin-bottom: 0.4rem; }
+  .advice-card p { font-size: 0.85rem; color: var(--text-muted); }
+  .advice-card.warn { border-left-color: var(--accent2); }
+  .advice-card.danger { border-left-color: var(--red); }
+  .advice-card.good { border-left-color: var(--green); }
+
+  /* ── Conclusion ── */
+  .conclusion {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.25rem 1.5rem;
+    margin-bottom: 2rem;
+    font-size: 1.05rem;
+    text-align: center;
+    line-height: 1.8;
+  }
+  .conclusion strong { color: var(--accent); }
+  .conclusion.warn strong { color: var(--accent2); }
+
+  /* ── Footer ── */
+  footer {
+    text-align: center;
+    padding: 2rem 0;
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    border-top: 1px solid var(--border);
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+
+<header>
+  <h1>退休規劃分析</h1>
+  <p>輸入你的收支條件，看看幾歲能財務自由</p>
+</header>
+
+<!-- ── Parameter Panel ── -->
+<section>
+  <h2><span class="icon">&#9881;</span> 你的基本資料</h2>
+  <div class="params">
+    <div class="param-grid">
+      <div class="param-group">
+        <label>目前年齡 (歲)</label>
+        <input type="number" id="p_age" value="22" step="1" min="18" max="80">
+        <div class="error-msg" id="err_age"></div>
+      </div>
+      <div class="param-group">
+        <label>可投資資產 (NT$)</label>
+        <input type="text" inputmode="numeric" id="p_assets" value="0">
+        <div class="error-msg" id="err_assets"></div>
+      </div>
+      <div class="param-group">
+        <label>年收入 (NT$)</label>
+        <input type="text" inputmode="numeric" id="p_income" value="1,000,000">
+        <div class="error-msg" id="err_income"></div>
+      </div>
+      <div class="param-group">
+        <label>年支出 (NT$)</label>
+        <input type="text" inputmode="numeric" id="p_expenses" value="800,000">
+        <div class="error-msg" id="err_expenses"></div>
+      </div>
+      <div class="param-group">
+        <label>預期年報酬率 (%)</label>
+        <input type="number" id="p_return" value="7" step="0.5" min="1" max="15">
+        <div class="error-msg" id="err_return"></div>
+      </div>
+      <div class="param-group">
+        <label>通膨率 (%)</label>
+        <input type="number" id="p_inflation" value="3" step="0.5" min="0" max="10">
+        <div class="error-msg" id="err_inflation"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Chart 3: Sensitivity ── -->
+<section>
+  <h2><span class="icon">&#128202;</span> 退休資產模擬器</h2>
+  <div class="chart-grid">
+    <div class="chart-box">
+      <div class="desc" id="c3Summary"></div>
+      <div class="chart-wrap full"><canvas id="chart3"></canvas></div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Conclusion ── -->
+<div id="conclusion" class="conclusion"></div>
+
+<!-- ── Key Metrics ── -->
+<div class="metrics" id="metrics"></div>
+
+<footer>
+  <p>此分析僅供參考，不構成投資建議。實際報酬率會有波動，請依個人風險承受度調整。</p>
+  <p style="margin-top:0.3rem;">Retirement Planning Tool &copy; 2026</p>
+</footer>
+
+</div>
+
+<script>
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//  Simulation Engine (mirrors retirement_sim.py)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+function clamp(v, min, max) { return Math.min(max, Math.max(min, isNaN(v) ? min : v)); }
+function currentAge() { return clamp(+document.getElementById("p_age").value, 18, 80); }
+const CURRENT_YEAR = 2026;
+const AVG_LIFESPAN = 80;
+
+const LOANS = [];
+
+// ── Thousand-separator helpers ──
+function stripCommas(s) { return s.replace(/,/g, ""); }
+function addCommas(n) {
+  const parts = n.toString().split(".");
+  parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  return parts.join(".");
+}
+function getNumericValue(id) {
+  return +stripCommas(document.getElementById(id).value);
+}
+
+// Auto-format money fields on input
+const MONEY_FIELDS = ["p_assets", "p_income", "p_expenses"];
+MONEY_FIELDS.forEach(id => {
+  const el = document.getElementById(id);
+  el.addEventListener("input", () => {
+    const raw = stripCommas(el.value).replace(/[^\d]/g, "");
+    if (raw === "") { el.value = ""; return; }
+    const pos = el.selectionStart;
+    const beforeLen = el.value.length;
+    el.value = addCommas(raw);
+    const afterLen = el.value.length;
+    el.setSelectionRange(pos + afterLen - beforeLen, pos + afterLen - beforeLen);
+  });
+});
+
+function getParams() {
+  return {
+    assets:      clamp(getNumericValue("p_assets"), 0, 1e10),
+    income:      clamp(getNumericValue("p_income"), 0, 1e10),
+    expenses:    clamp(getNumericValue("p_expenses"), 0, 1e10),
+    nomReturn:   clamp(+document.getElementById("p_return").value, 1, 15) / 100,
+    inflation:   clamp(+document.getElementById("p_inflation").value, 0, 10) / 100,
+    deathAge:    100,
+  };
+}
+
+function totalLiquid(p) {
+  return p.assets;
+}
+
+function loanPayments(year) {
+  let total = 0;
+  for (const ln of LOANS) {
+    if (year < ln.endYear) total += ln.monthly * 12;
+    else if (year === ln.endYear) total += ln.monthly * ln.endMonth;
+  }
+  return total;
+}
+
+function simulate(retireAge, p, customReturn, incomeOverride) {
+  const nr = customReturn ?? p.nomReturn;
+  const deathAge = p.deathAge;
+  const startAge = currentAge();
+  let portfolio = totalLiquid(p);
+  let minPort = portfolio;
+  const ages = [], reals = [], nominals = [];
+
+  for (let age = startAge; age <= deathAge; age++) {
+    const year = CURRENT_YEAR + (age - startAge);
+    const inf = Math.pow(1 + p.inflation, age - startAge);
+
+    ages.push(age);
+    reals.push(portfolio / inf);
+    nominals.push(portfolio);
+
+    if (age === deathAge) break;
+
+    if (portfolio > 0) portfolio *= (1 + nr);
+    const exp = p.expenses * inf;
+    const loans = loanPayments(year);
+
+    if (age < retireAge) {
+      let inc = p.income;
+      if (incomeOverride) {
+        inc = age >= incomeOverride.startAge ? incomeOverride.amount : 0;
+      }
+      portfolio += inc * inf - exp - loans;
+    } else {
+      portfolio -= (exp + loans);
+    }
+    minPort = Math.min(minPort, portfolio);
+  }
+
+  return { ages, reals, nominals, minPort, feasible: minPort >= 0 };
+}
+
+function findEarliest(p, customReturn, incomeOverride) {
+  const lifeP = { ...p, deathAge: AVG_LIFESPAN };
+  for (let ra = currentAge(); ra < AVG_LIFESPAN; ra++) {
+    const res = simulate(ra, lifeP, customReturn, incomeOverride);
+    if (res.feasible) return ra;
+  }
+  return null;
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//  Crosshair plugin
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+const crosshairPlugin = {
+  id: "crosshair",
+  afterEvent(chart, args) {
+    const { event } = args;
+    if (event.type === "mousemove" && event.x && event.y) {
+      chart._crosshair = { x: event.x, y: event.y };
+    } else if (event.type === "mouseout") {
+      chart._crosshair = null;
+    }
+    chart.draw();
+  },
+  afterDatasetsDraw(chart) {
+    if (!chart.ctx || !chart.chartArea) return;
+    const c = chart._crosshair;
+    if (!c) return;
+    const { ctx, chartArea: { top, bottom, left, right } } = chart;
+    if (c.x < left || c.x > right || c.y < top || c.y > bottom) return;
+    ctx.save();
+    ctx.setLineDash([3, 3]);
+    ctx.strokeStyle = "rgba(255,255,255,0.25)";
+    ctx.lineWidth = 1;
+    // vertical
+    ctx.beginPath(); ctx.moveTo(c.x, top); ctx.lineTo(c.x, bottom); ctx.stroke();
+    // horizontal
+    ctx.beginPath(); ctx.moveTo(left, c.y); ctx.lineTo(right, c.y); ctx.stroke();
+    ctx.restore();
+  }
+};
+Chart.register(crosshairPlugin);
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//  Legend hover highlight helpers
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function legendHover(evt, legendItem, legend) {
+  const ci = legendItem.datasetIndex;
+  legend.chart.data.datasets.forEach((ds, i) => {
+    ds._origBorderWidth = ds._origBorderWidth ?? ds.borderWidth;
+    ds._origBorderColor = ds._origBorderColor ?? ds.borderColor;
+    if (i === ci) {
+      ds.borderWidth = 4;
+    } else {
+      ds.borderColor = ds._origBorderColor + "30";
+      ds.borderWidth = 1;
+    }
+  });
+  legend.chart.update("none");
+}
+function legendLeave(evt, legendItem, legend) {
+  legend.chart.data.datasets.forEach(ds => {
+    if (ds._origBorderColor) ds.borderColor = ds._origBorderColor;
+    if (ds._origBorderWidth) ds.borderWidth = ds._origBorderWidth;
+  });
+  legend.chart.update("none");
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//  Chart instances
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+let charts = {};
+
+const CHART_COLORS = {
+  blue: "#6366f1", amber: "#f59e0b", green: "#22c55e", red: "#ef4444",
+  pink: "#ec4899", cyan: "#06b6d4", purple: "#a78bfa", orange: "#f97316",
+  lime: "#84cc16",
+};
+
+const gridColor = "rgba(255,255,255,0.06)";
+
+// Fade line segments that go below zero
+function fadeBelow0(color) {
+  return {
+    segment: {
+      borderColor: ctx => (ctx.p0.parsed.y < 0 || ctx.p1.parsed.y < 0) ? color + "30" : undefined,
+      borderDash: ctx => (ctx.p0.parsed.y < 0 || ctx.p1.parsed.y < 0) ? [4, 4] : undefined,
+    }
+  };
+}
+// Plugin: shade the area below y=0 and label "吃土"
+const belowZeroPlugin = {
+  id: "belowZero",
+  beforeDatasetsDraw(chart) {
+    if (!chart.ctx || !chart.chartArea) return;
+    const yScale = chart.scales.y;
+    if (!yScale || yScale.min >= 0) return;
+    const { ctx, chartArea: { left, right, bottom } } = chart;
+    const zeroY = yScale.getPixelForValue(0);
+    if (zeroY >= bottom) return;
+
+    ctx.save();
+    // shaded region
+    ctx.fillStyle = "rgba(239,68,68,0.08)";
+    ctx.fillRect(left, zeroY, right - left, bottom - zeroY);
+    // zero line
+    ctx.strokeStyle = "rgba(239,68,68,0.3)";
+    ctx.lineWidth = 1;
+    ctx.setLineDash([6, 4]);
+    ctx.beginPath(); ctx.moveTo(left, zeroY); ctx.lineTo(right, zeroY); ctx.stroke();
+    ctx.setLineDash([]);
+    // "吃土" label
+    const cx = (left + right) / 2;
+    const cy = (zeroY + bottom) / 2;
+    ctx.font = "bold 24px -apple-system, sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillStyle = "rgba(239,68,68,0.25)";
+    ctx.fillText("吃土好吃唷", cx, cy);
+    ctx.restore();
+  }
+};
+Chart.register(belowZeroPlugin);
+
+const defaultScales = () => ({
+  x: { grid: { color: gridColor }, ticks: { color: "#9ca3af" } },
+  y: { grid: { color: gridColor }, ticks: { color: "#9ca3af", callback: v => v.toLocaleString() + " 萬" } }
+});
+
+// Shared interaction + tooltip + legend config injected into every chart
+function withInteraction(opts) {
+  return {
+    ...opts,
+    interaction: { mode: "index", intersect: false },
+    plugins: {
+      ...opts.plugins,
+      legend: {
+        ...(opts.plugins?.legend || {}),
+        labels: { color: "#e4e4e7", padding: 16, boxWidth: 40, boxHeight: 2, ...(opts.plugins?.legend?.labels || {}) },
+        onHover: legendHover,
+        onLeave: legendLeave,
+      },
+      tooltip: {
+        mode: "index", intersect: false,
+        backgroundColor: "rgba(26,29,46,0.95)", titleColor: "#e4e4e7", bodyColor: "#e4e4e7",
+        borderColor: "rgba(255,255,255,0.1)", borderWidth: 1, padding: 12, cornerRadius: 8,
+        bodySpacing: 6, usePointStyle: true,
+        callbacks: {
+          label: ctx => {
+            const v = ctx.parsed.y;
+            const sign = v >= 0 ? "" : "-";
+            return ` ${ctx.dataset.label}: ${sign}NT$ ${Math.abs(v).toFixed(0)} 萬`;
+          },
+          ...(opts.plugins?.tooltip?.callbacks || {}),
+        },
+      },
+    },
+  };
+}
+
+function destroyAll() { Object.values(charts).forEach(c => c.destroy()); charts = {}; }
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//  Chart 3: draggable retirement-age line + income bar
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function c3Returns(p) {
+  const base = p.nomReturn;
+  return [base - 0.02, base, base + 0.02];
+}
+const C3_COLORS = [CHART_COLORS.red, CHART_COLORS.amber, CHART_COLORS.green];
+
+// Retirement line state
+let c3RetireAge = 40;
+let c3Dragging = false;
+let c3Hovered = false;
+
+// Income bar state
+let c3IncAge = currentAge();
+let c3IncAmount = 200; // 萬
+let c3IncDragging = false;
+let c3IncHovered = false;
+const C3_INC_MAX = 500; // 萬
+
+// Retirement helpers
+function c3AgeToX(chart) { return chart.scales.x.getPixelForValue(c3RetireAge - currentAge()); }
+function c3XToAge(chart, px) {
+  const idx = Math.round(chart.scales.x.getValueForPixel(px));
+  const maxAge = getParams().deathAge - 1;
+  return Math.max(currentAge(), Math.min(maxAge, idx + currentAge()));
+}
+function c3IsNear(chart, px) { return Math.abs(px - c3AgeToX(chart)) < 16; }
+
+// Income helpers
+function c3IncAgeToX(chart) { return chart.scales.x.getPixelForValue(c3IncAge - currentAge()); }
+function c3IncAmountToY(chart) {
+  const { top, bottom } = chart.chartArea;
+  return bottom - (c3IncAmount / C3_INC_MAX) * (bottom - top);
+}
+function c3IncXToAge(chart, px) {
+  const idx = Math.round(chart.scales.x.getValueForPixel(px));
+  const maxAge = getParams().deathAge - 1;
+  return Math.max(currentAge(), Math.min(maxAge, idx + currentAge()));
+}
+function c3IncYToAmount(chart, py) {
+  const { top, bottom } = chart.chartArea;
+  const raw = (bottom - py) / (bottom - top) * C3_INC_MAX;
+  return Math.max(0, Math.min(C3_INC_MAX, Math.round(raw / 5) * 5));
+}
+function c3IncIsNear(chart, px, py) {
+  return Math.abs(px - c3IncAgeToX(chart)) < 28 && Math.abs(py - c3IncAmountToY(chart)) < 18;
+}
+function c3GetIncOverride() {
+  return { startAge: c3IncAge, amount: c3IncAmount * 1e4 };
+}
+
+// Draw plugin — retirement line + income bar
+const dragLinePlugin = {
+  id: "dragLine",
+  afterDatasetsDraw(chart) {
+    if (!chart.ctx || !chart.chartArea) return;
+    const { ctx, chartArea: { top, bottom, left, right } } = chart;
+
+    // ── Average lifespan line ──
+    const lifeIdx = AVG_LIFESPAN - currentAge();
+    const lifeX = chart.scales.x.getPixelForValue(lifeIdx);
+    if (lifeX >= left && lifeX <= right) {
+      ctx.save();
+      ctx.setLineDash([4, 6]);
+      ctx.strokeStyle = "rgba(255,255,255,0.25)";
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(lifeX, top); ctx.lineTo(lifeX, bottom); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.font = "11px -apple-system, sans-serif";
+      ctx.textAlign = "left";
+      ctx.fillStyle = "rgba(255,255,255,0.45)";
+      ctx.save();
+      ctx.translate(lifeX + 6, top + 20);
+      ctx.fillText(`平均壽命 ${AVG_LIFESPAN} 歲`, 0, 0);
+      ctx.restore();
+      ctx.restore();
+    }
+
+    // ── Income bar (green) ──
+    const incX = c3IncAgeToX(chart);
+    const incY = c3IncAmountToY(chart);
+    const incActive = c3IncHovered || c3IncDragging;
+    ctx.save();
+    ctx.setLineDash([5, 4]);
+    ctx.strokeStyle = incActive ? "#4ade80" : "#22c55e";
+    ctx.lineWidth = incActive ? 2.5 : 1.5;
+    ctx.beginPath(); ctx.moveTo(incX, top); ctx.lineTo(incX, bottom); ctx.stroke();
+    ctx.setLineDash([]);
+    const ipw = 22, iph = 13, ipr = 7;
+    ctx.beginPath(); ctx.roundRect(incX - ipw, incY - iph, ipw * 2, iph * 2, ipr);
+    ctx.fillStyle = c3IncDragging ? "#4ade80" : incActive ? "#34d399" : "#22c55e";
+    ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = "#0f1117"; ctx.stroke();
+    ctx.fillStyle = "#0f1117";
+    ctx.beginPath(); ctx.moveTo(incX - 16, incY); ctx.lineTo(incX - 11, incY - 4); ctx.lineTo(incX - 11, incY + 4); ctx.closePath(); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(incX + 16, incY); ctx.lineTo(incX + 11, incY - 4); ctx.lineTo(incX + 11, incY + 4); ctx.closePath(); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(incX, incY - 9); ctx.lineTo(incX - 4, incY - 5); ctx.lineTo(incX + 4, incY - 5); ctx.closePath(); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(incX, incY + 9); ctx.lineTo(incX - 4, incY + 5); ctx.lineTo(incX + 4, incY + 5); ctx.closePath(); ctx.fill();
+    ctx.font = "bold 11px -apple-system, sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "#4ade80";
+    ctx.fillText(`${c3IncAge}歲起 年收${c3IncAmount}萬`, incX, incY - iph - 6);
+    ctx.restore();
+
+    // ── Retirement line (purple) ──
+    const lineX = c3AgeToX(chart);
+    const retActive = c3Dragging || c3Hovered;
+    ctx.save();
+    ctx.beginPath(); ctx.moveTo(lineX, top); ctx.lineTo(lineX, bottom);
+    ctx.lineWidth = retActive ? 3 : 2; ctx.strokeStyle = c3Dragging ? "#818cf8" : "#6366f1";
+    ctx.setLineDash([6, 4]); ctx.stroke(); ctx.setLineDash([]);
+    const cy = top + 28, pw = 18, ph = 12, pr = 6;
+    ctx.beginPath(); ctx.roundRect(lineX - pw, cy - ph, pw * 2, ph * 2, pr);
+    ctx.fillStyle = c3Dragging ? "#818cf8" : retActive ? "#7c7ff2" : "#6366f1";
+    ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = "#0f1117"; ctx.stroke();
+    ctx.fillStyle = "#e4e4e7";
+    ctx.beginPath(); ctx.moveTo(lineX - 13, cy); ctx.lineTo(lineX - 7, cy - 5); ctx.lineTo(lineX - 7, cy + 5); ctx.closePath(); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(lineX + 13, cy); ctx.lineTo(lineX + 7, cy - 5); ctx.lineTo(lineX + 7, cy + 5); ctx.closePath(); ctx.fill();
+    ctx.font = "bold 12px -apple-system, sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "#e4e4e7";
+    ctx.fillText(c3RetireAge + " 歲退休", lineX, cy + ph + 16);
+    ctx.restore();
+  }
+};
+
+function updateC3Summary(p) {
+  const age = currentAge();
+  const workYears = c3RetireAge - Math.max(age, c3IncAge);
+  const el = document.getElementById("c3Summary");
+  el.innerHTML = `假設 <b>${c3IncAge} 歲</b>開始工作、年收 <b>${c3IncAmount} 萬</b>，`
+    + `<b>${c3RetireAge} 歲</b>退休（工作 ${Math.max(0, workYears)} 年），`
+    + `年支出 <b>${(p.expenses/1e4).toFixed(0)} 萬</b>，`
+    + `以下為不同報酬率下的資產走勢（實質購買力）`;
+}
+
+function c3UpdateData(chart, p, alsoUpdateOthers) {
+  const inc = c3GetIncOverride();
+  updateC3Summary(p);
+  c3Returns(p).forEach((nr, i) => {
+    const r = simulate(c3RetireAge, p, nr, inc);
+    chart.data.datasets[i].data = r.reals.map(v => v / 1e4);
+  });
+  chart.update("none");
+  // When income bar moves, refresh metrics + conclusion
+  if (alsoUpdateOthers) {
+    const earliest = findEarliest(p, undefined, inc);
+
+    const incNow = currentAge() >= c3IncAge ? inc.amount : 0;
+    const investable = incNow - p.expenses;
+    const fireRatio = p.expenses > 0 ? (totalLiquid(p) / p.expenses).toFixed(1) : "∞";
+    const incLabel = currentAge() >= c3IncAge ? "收入 − 支出" : `${c3IncAge}歲前無收入`;
+    document.getElementById("metrics").innerHTML = `
+      <div class="metric-card"><div class="label">投資資產總計</div><div class="value">NT$ ${(totalLiquid(p)/1e4).toFixed(0)} 萬</div><div class="sub">可投資資產</div></div>
+      <div class="metric-card"><div class="label">年可投資金額</div><div class="value ${investable >= 0 ? 'green' : 'red'}">NT$ ${(investable/1e4).toFixed(1)} 萬</div><div class="sub">${incLabel}</div></div>
+      <div class="metric-card"><div class="label">財務自由倍數</div><div class="value green">${fireRatio} 倍</div><div class="sub">達 25 倍即可考慮退休</div></div>
+    `;
+    updateConclusion(earliest);
+  }
+}
+
+let c3EventAbort = null;
+
+function c3BindEvents(canvas, chart) {
+  if (c3EventAbort) c3EventAbort.abort();
+  c3EventAbort = new AbortController();
+  const opt = { signal: c3EventAbort.signal };
+
+  function getXY(e) {
+    const rect = canvas.getBoundingClientRect();
+    return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+  }
+  canvas.addEventListener("pointerdown", e => {
+    const { x, y } = getXY(e);
+    if (c3IncIsNear(chart, x, y)) {
+      c3IncDragging = true; canvas.setPointerCapture(e.pointerId);
+      canvas.style.cursor = "move"; chart.draw();
+    } else if (c3IsNear(chart, x)) {
+      c3Dragging = true; canvas.setPointerCapture(e.pointerId);
+      canvas.style.cursor = "grabbing"; chart.draw();
+    }
+  }, opt);
+  canvas.addEventListener("pointermove", e => {
+    const { x, y } = getXY(e);
+    if (c3IncDragging) {
+      const newAge = c3IncXToAge(chart, x);
+      const newAmt = c3IncYToAmount(chart, y);
+      if (newAge !== c3IncAge || newAmt !== c3IncAmount) {
+        c3IncAge = newAge; c3IncAmount = newAmt;
+        document.getElementById("p_income").value = addCommas(c3IncAmount * 1e4);
+        c3UpdateData(chart, getParams(), true);
+      }
+      chart.draw();
+    } else if (c3Dragging) {
+      const newAge = c3XToAge(chart, x);
+      if (newAge !== c3RetireAge) { c3RetireAge = newAge; c3UpdateData(chart, getParams(), true); }
+      chart.draw();
+    } else {
+      const nearInc = c3IncIsNear(chart, x, y);
+      const nearRet = !nearInc && c3IsNear(chart, x);
+      if (nearInc !== c3IncHovered || nearRet !== c3Hovered) {
+        c3IncHovered = nearInc; c3Hovered = nearRet;
+        canvas.style.cursor = nearInc ? "move" : nearRet ? "grab" : "";
+        chart.draw();
+      }
+    }
+  }, opt);
+  canvas.addEventListener("pointerup", e => {
+    const { x, y } = getXY(e);
+    if (c3IncDragging) {
+      c3IncDragging = false; canvas.releasePointerCapture(e.pointerId);
+      canvas.style.cursor = c3IncIsNear(chart, x, y) ? "move" : ""; chart.draw();
+    } else if (c3Dragging) {
+      c3Dragging = false; canvas.releasePointerCapture(e.pointerId);
+      canvas.style.cursor = c3IsNear(chart, x) ? "grab" : ""; chart.draw();
+    }
+  }, opt);
+  canvas.addEventListener("pointerleave", () => {
+    if (!c3Dragging && !c3IncDragging) {
+      c3Hovered = false; c3IncHovered = false;
+      canvas.style.cursor = ""; chart.draw();
+    }
+  }, opt);
+}
+
+function renderChart3(p, retAge) {
+  if (charts.c3) { charts.c3.destroy(); delete charts.c3; }
+  c3RetireAge = retAge; c3Dragging = false; c3Hovered = false;
+  c3IncAge = currentAge(); c3IncAmount = Math.min(C3_INC_MAX, Math.round(p.income / 1e4));
+  c3IncDragging = false; c3IncHovered = false;
+
+  const inc = c3GetIncOverride();
+  updateC3Summary(p);
+  const base = simulate(retAge, p, undefined, inc);
+  const C3_LABELS = ["悲觀", "基準", "樂觀"];
+  const datasets = c3Returns(p).map((nr, i) => {
+    const r = simulate(retAge, p, nr, inc);
+    return {
+      label: `${C3_LABELS[i]} ${(nr*100).toFixed(0)}%`,
+      data: r.reals.map(v => v / 1e4),
+      borderColor: C3_COLORS[i], tension: 0.3, pointRadius: 0, borderWidth: i === 1 ? 3 : 2, pointHoverRadius: 6,
+      ...fadeBelow0(C3_COLORS[i]),
+    };
+  });
+  charts.c3 = new Chart(document.getElementById("chart3"), {
+    type: "line",
+    data: { labels: base.ages, datasets },
+    options: withInteraction({ responsive: true, maintainAspectRatio: false, scales: defaultScales() }),
+    plugins: [dragLinePlugin],
+  });
+  c3BindEvents(document.getElementById("chart3"), charts.c3);
+}
+
+function updateConclusion(earliest) {
+  const el = document.getElementById("conclusion");
+  if (earliest !== null) {
+    el.className = "conclusion";
+    el.innerHTML = `以基準報酬率計算，資產足以支撐到 ${AVG_LIFESPAN} 歲，最早可 <strong>${earliest} 歲</strong>退休`;
+  } else {
+    el.className = "conclusion warn";
+    el.innerHTML = `以目前條件，到 100 歲前<strong>無法達成財務自由</strong>`;
+  }
+}
+
+function fmt(n) { return (n / 1e4).toFixed(0) + " 萬"; }
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//  Render
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//  Input Validation
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+const VALIDATIONS = {
+  p_age:       { min: 18, max: 80,  integer: true,  errId: "err_age",       emptyMsg: "請輸入年齡", rangeMsg: "年齡需介於 18–80 歲", intMsg: "年齡須為整數" },
+  p_assets:    { min: 0,  max: 1e10, integer: false, errId: "err_assets",    emptyMsg: "請輸入資產金額", rangeMsg: "資產不能為負數" },
+  p_income:    { min: 0,  max: 1e10, integer: false, errId: "err_income",    emptyMsg: "請輸入年收入",   rangeMsg: "收入不能為負數" },
+  p_expenses:  { min: 0,  max: 1e10, integer: false, errId: "err_expenses",  emptyMsg: "請輸入年支出",   rangeMsg: "支出不能為負數" },
+  p_return:    { min: 1,  max: 15,   integer: false, errId: "err_return",    emptyMsg: "請輸入報酬率",   rangeMsg: "報酬率需介於 1%–15%" },
+  p_inflation: { min: 0,  max: 10,   integer: false, errId: "err_inflation", emptyMsg: "請輸入通膨率",   rangeMsg: "通膨率需介於 0%–10%" },
+};
+
+function validateAll() {
+  let valid = true;
+  for (const [id, rule] of Object.entries(VALIDATIONS)) {
+    const input = document.getElementById(id);
+    const errEl = document.getElementById(rule.errId);
+    const raw = stripCommas(input.value.trim());
+    let msg = "";
+
+    if (raw === "" || isNaN(Number(raw))) {
+      msg = raw === "" ? rule.emptyMsg : "請輸入有效數字";
+    } else {
+      const v = Number(raw);
+      if (rule.integer && !Number.isInteger(v)) {
+        msg = rule.intMsg;
+      } else if (v < rule.min || v > rule.max) {
+        msg = rule.rangeMsg;
+      }
+    }
+
+    if (msg) {
+      input.classList.add("invalid");
+      errEl.textContent = msg;
+      valid = false;
+    } else {
+      input.classList.remove("invalid");
+      errEl.textContent = "";
+    }
+  }
+  return valid;
+}
+
+let debounceTimer;
+function recalculate() {
+  if (!validateAll()) return;
+  destroyAll();
+  const p = getParams();
+  const age = currentAge();
+  if (age >= p.deathAge) return; // nothing to simulate
+
+  c3IncAmount = Math.min(C3_INC_MAX, Math.round(p.income / 1e4));
+  const inc = c3GetIncOverride();
+  const earliest = findEarliest(p, undefined, inc);
+  const incNow = age >= c3IncAge ? inc.amount : 0;
+  const investable = incNow - p.expenses;
+  const fireRatio = p.expenses > 0 ? (totalLiquid(p) / p.expenses).toFixed(1) : "∞";
+  const incLabel = age >= c3IncAge ? "收入 − 支出" : `${c3IncAge}歲前無收入`;
+
+  // ── Metrics ──
+  document.getElementById("metrics").innerHTML = `
+    <div class="metric-card"><div class="label">投資資產總計</div><div class="value">NT$ ${(totalLiquid(p)/1e4).toFixed(0)} 萬</div><div class="sub">可投資資產</div></div>
+    <div class="metric-card"><div class="label">年可投資金額</div><div class="value ${investable >= 0 ? 'green' : 'red'}">NT$ ${(investable/1e4).toFixed(1)} 萬</div><div class="sub">${incLabel}</div></div>
+    <div class="metric-card"><div class="label">財務自由倍數</div><div class="value green">${fireRatio} 倍</div><div class="sub">達 25 倍即可考慮退休</div></div>
+  `;
+
+  // ── Conclusion ──
+  updateConclusion(earliest);
+
+  // ── Chart 3: Sensitivity (draggable retire line + income bar) ──
+  const retAge = Math.min(40, p.deathAge - 1);
+  renderChart3(p, retAge);
+}
+
+// Auto-update on any parameter change
+document.querySelectorAll(".params input").forEach(input => {
+  input.addEventListener("input", () => {
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(recalculate, 300);
+  });
+});
+
+// Initial render
+recalculate();
+</script>
+
+</body>
+</html>
