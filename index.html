@@ -750,8 +750,7 @@ Chart.register(belowZeroPlugin);
 const defaultScales = () => ({
   x: { grid: { color: gridColor }, ticks: { color: "#9ca3af" } },
   y: { grid: { color: gridColor }, ticks: { color: "#9ca3af", callback: function(v) {
-    const absMax = Math.max(Math.abs(this.max), Math.abs(this.min));
-    if (absMax >= 10000) return (v / 10000).toLocaleString() + " 億";
+    if (this.max >= 10000 && this.min >= 0) return (v / 10000).toLocaleString() + " 億";
     return v.toLocaleString() + " 萬";
   }}}
 });
