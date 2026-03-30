@@ -184,6 +184,7 @@
     font-size: 0.82rem;
     color: var(--text-muted);
     list-style: none;
+    width: fit-content;
   }
   .advanced summary::before { content: "▸ "; }
   .advanced[open] summary::before { content: "▾ "; }
@@ -335,6 +336,59 @@
     pointer-events: none;
   }
 
+  /* ── Yearly Table ── */
+  .yearly-table-wrap {
+    margin-bottom: 2rem;
+  }
+  .yearly-table-wrap details {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+  }
+  .yearly-table-wrap summary {
+    cursor: pointer;
+    padding: 1rem 1.25rem;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--text);
+    list-style: none;
+  }
+  .yearly-table-wrap summary::before { content: "▸ "; color: var(--text-muted); }
+  .yearly-table-wrap details[open] summary::before { content: "▾ "; }
+  .yearly-table-wrap summary::-webkit-details-marker { display: none; }
+  .yearly-table-scroll {
+    overflow-x: auto;
+    padding: 0 1.25rem 1.25rem;
+  }
+  .yearly-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.82rem;
+    white-space: nowrap;
+  }
+  .yearly-table th {
+    text-align: right;
+    padding: 0.5rem 0.75rem;
+    color: var(--text-muted);
+    font-weight: 600;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .yearly-table th:first-child, .yearly-table td:first-child { text-align: center; }
+  .yearly-table td {
+    text-align: right;
+    padding: 0.45rem 0.75rem;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+    color: var(--text);
+  }
+  .yearly-table .retire-row td {
+    border-top: 2px solid var(--accent);
+    font-weight: 600;
+  }
+  .yearly-table .negative { color: var(--red); }
+
   /* ── Notes ── */
   .notes { margin-bottom: 2rem; }
   .notes-grid {
@@ -448,18 +502,34 @@
   <div class="share-hint">連結會包含你填的所有數字（含資產與收支）</div>
 </div>
 
+<div id="yearlyTableWrap" class="yearly-table-wrap" style="display:none">
+  <details>
+    <summary>逐年試算明細（基準情境）</summary>
+    <div style="padding:0.75rem 1.25rem;font-size:0.78rem;color:var(--text-muted);line-height:1.7;">
+      <p>每行的資產是該年齡的年初資產，約等於上方圖表滑到同一年齡時顯示的數字（圖表四捨五入到萬，表格精確到元）。收入、支出、投資報酬是該年發生的事，結果反映在下一行。</p>
+      <p style="margin-top:0.4rem;">計算順序：先用年初資產算投資報酬，再加收入、扣支出（當年薪水不參與當年報酬）。</p>
+    </div>
+    <div class="yearly-table-scroll">
+      <table class="yearly-table">
+        <thead><tr><th>年齡</th><th>年度</th><th>資產(名目)<span class="info-tip" data-tip="帳面上的金額，尚未扣除通膨影響">&#9432;</span></th><th>資產(實質)<span class="info-tip" data-tip="扣除通膨後的購買力，也就是用今天的幣值來看值多少錢">&#9432;</span></th><th>收入</th><th>支出</th><th>投資報酬<span class="info-tip" data-tip="用年初資產 × 報酬率算出，當年收入不參與計算">&#9432;</span></th></tr></thead>
+        <tbody id="yearlyTbody"></tbody>
+      </table>
+    </div>
+  </details>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <section class="notes">
   <h2><span class="icon">&#9432;</span> 關於此計算</h2>
   <div class="notes-grid">
     <div class="note-item">
-      <h4>所有金額皆為「實質」購買力</h4>
-      <p>圖表已扣除通膨影響。例如 30 年後的 1,000 萬，以今天的購買力來看可能只值 400 多萬。這裡顯示的就是那個 400 多萬——你實際感受到的價值。</p>
+      <h4>圖表顯示「實質」購買力</h4>
+      <p>圖表上的金額已扣除通膨影響。例如 30 年後帳面上的 1,000 萬，以今天的購買力來看可能只值 400 多萬。圖表顯示的就是那個 400 多萬——你實際感受到的價值。逐年試算表格則同時列出名目與實質金額，方便對照。</p>
     </div>
     <div class="note-item">
-      <h4>收入也會隨通膨成長</h4>
-      <p>模擬中假設你的收入會跟著物價調整（例如加薪），支出也是。所以退休前每年實際能存下的金額大致不變。</p>
+      <h4>收入與支出都會隨通膨成長</h4>
+      <p>模擬中假設你的收入會跟著物價調整（例如加薪），支出也是，所以退休前每年實際能存下的金額大致不變。這不是重複扣通膨——模擬全程用名目金額計算，最後才除以通膨係數轉成實質購買力。報酬率 7%、通膨 3% 的話，實質報酬大約是 4%。</p>
     </div>
     <div class="note-item">
       <h4>退休後沒收入，資產會加速縮水</h4>
@@ -476,6 +546,17 @@
     <div class="note-item">
       <h4>平均壽命 80 歲</h4>
       <p>「最快幾歲能退休」的計算是以資產撐到 80 歲為標準。圖表則模擬到 90 歲，讓你看得更遠。</p>
+    </div>
+    <div class="note-item">
+      <h4>計算公式</h4>
+      <p style="line-height:1.9;">
+        ① 起始資產 = 現有資產<br>
+        ② 每年：資產 × (1 + 報酬率)<br>
+        ③ 工作中：+ 年收入 × 通膨係數<br>
+        ④ 每年：− 年支出 × 通膨係數<br>
+        ⑤ 通膨係數 = (1 + 通膨率)<sup>年數</sup><br>
+        ⑥ 實質購買力 = 名目資產 ÷ 通膨係數
+      </p>
     </div>
     <div class="note-item">
       <h4>不含勞保、勞退、保險</h4>
@@ -617,6 +698,7 @@ function simulate(retireAge, p, customReturn, incomeOverride) {
   let portfolio = p.assets;
   let minPort = portfolio;
   const ages = [], reals = [], nominals = [];
+  const yearIncomes = [], yearExpenses = [], yearReturns = [];
 
   for (let age = startAge; age <= deathAge; age++) {
     const year = CURRENT_YEAR + (age - startAge);
@@ -626,9 +708,11 @@ function simulate(retireAge, p, customReturn, incomeOverride) {
     reals.push(portfolio / inf);
     nominals.push(portfolio);
 
-    if (age === deathAge) break;
+    if (age === deathAge) { yearIncomes.push(0); yearExpenses.push(0); yearReturns.push(0); break; }
 
-    if (portfolio > 0) portfolio *= (1 + nr); // 負債不計息（簡化模型）
+    const ret = portfolio > 0 ? portfolio * nr : 0;
+    yearReturns.push(ret);
+    if (portfolio > 0) portfolio *= (1 + nr);
     const exp = p.expenses * inf;
 
     if (age < retireAge) {
@@ -636,14 +720,18 @@ function simulate(retireAge, p, customReturn, incomeOverride) {
       if (incomeOverride) {
         inc = age >= incomeOverride.startAge ? incomeOverride.amount : 0;
       }
+      yearIncomes.push(inc * inf);
+      yearExpenses.push(exp);
       portfolio += inc * inf - exp;
     } else {
+      yearIncomes.push(0);
+      yearExpenses.push(exp);
       portfolio -= exp;
     }
     minPort = Math.min(minPort, portfolio);
   }
 
-  return { ages, reals, nominals, minPort, feasible: minPort >= 0 };
+  return { ages, reals, nominals, minPort, feasible: minPort >= 0, yearIncomes, yearExpenses, yearReturns };
 }
 
 function findEarliest(p, customReturn, incomeOverride) {
@@ -812,7 +900,7 @@ function withInteraction(opts) {
           label: ctx => {
             const v = ctx.parsed.y;
             const sign = v >= 0 ? "" : "-";
-            return ` ${ctx.dataset.label}: ${sign}NT$ ${Math.abs(v).toFixed(0)} 萬`;
+            return ` ${ctx.dataset.label}: ≈ ${sign}NT$ ${Math.abs(v).toFixed(0)} 萬`;
           },
           ...(opts.plugins?.tooltip?.callbacks || {}),
         },
@@ -842,7 +930,7 @@ let c3IncAge = currentAge();
 let c3IncAmount = 200; // 萬
 let c3IncDragging = false;
 let c3IncHovered = false;
-const C3_INC_MAX = 500; // 萬
+let C3_INC_MAX = 500; // 萬, dynamically adjusted
 
 // Retirement helpers
 function c3AgeToX(chart) { return chart.scales.x.getPixelForValue(c3RetireAge - currentAge()); }
@@ -991,6 +1079,7 @@ function c3UpdateData(chart, p, alsoUpdateOthers) {
 
     renderMetrics(p, inc);
     updateConclusion(earliest);
+    renderYearlyTable(p, c3RetireAge, inc);
   }
 }
 
@@ -1075,7 +1164,7 @@ function renderChart3(p, retAge) {
   if (charts.c3) { charts.c3.destroy(); delete charts.c3; }
   c3YMaxWidth = 0;
   c3RetireAge = retAge; c3Dragging = false; c3Hovered = false;
-  c3IncAge = currentAge(); c3IncAmount = Math.min(C3_INC_MAX, Math.round(p.income / 1e4));
+  c3IncAge = currentAge(); c3IncAmount = Math.round(p.income / 1e4);
   c3IncDragging = false; c3IncHovered = false;
 
   const inc = c3GetIncOverride();
@@ -1172,6 +1261,37 @@ function renderMetrics(p, inc) {
   `;
 }
 
+function renderYearlyTable(p, retireAge, inc) {
+  const r = simulate(retireAge, p, undefined, inc);
+  const tbody = document.getElementById("yearlyTbody");
+  const startAge = currentAge();
+  let rows = "";
+  for (let i = 0; i < r.ages.length; i++) {
+    const age = r.ages[i];
+    const year = CURRENT_YEAR + (age - startAge);
+    const isRetire = age === retireAge;
+    const rowClass = isRetire ? ' class="retire-row"' : "";
+    const nom = Math.round(r.nominals[i]);
+    const real = Math.round(r.reals[i]);
+    const inc_i = Math.round(r.yearIncomes[i]);
+    const exp_i = Math.round(r.yearExpenses[i]);
+    const ret_i = Math.round(r.yearReturns[i]);
+    const cls = v => v < 0 ? ' class="negative"' : "";
+    const isLast = i === r.ages.length - 1;
+    rows += `<tr${rowClass}>`
+      + `<td>${age}</td>`
+      + `<td>${year}</td>`
+      + `<td${cls(nom)}>${addCommas(nom)}</td>`
+      + `<td${cls(real)}>${addCommas(real)}</td>`
+      + `<td>${!isLast && inc_i > 0 ? addCommas(inc_i) : "—"}</td>`
+      + `<td>${!isLast && exp_i > 0 ? addCommas(exp_i) : "—"}</td>`
+      + `<td>${!isLast && ret_i !== 0 ? addCommas(ret_i) : "—"}</td>`
+      + `</tr>`;
+  }
+  tbody.innerHTML = rows;
+  document.getElementById("yearlyTableWrap").style.display = "";
+}
+
 let debounceTimer;
 function recalculate() {
   if (!validateAll()) return;
@@ -1180,7 +1300,9 @@ function recalculate() {
   const age = currentAge();
   if (age >= p.deathAge) return; // nothing to simulate
 
-  c3IncAmount = Math.min(C3_INC_MAX, Math.round(p.income / 1e4));
+  const incWan = Math.round(p.income / 1e4);
+  C3_INC_MAX = Math.max(500, Math.round(incWan * 1.5 / 50) * 50);
+  c3IncAmount = incWan;
   const inc = c3GetIncOverride();
   const earliest = findEarliest(p, undefined, inc);
   renderMetrics(p, inc);
@@ -1189,11 +1311,13 @@ function recalculate() {
   // ── Chart 3: Sensitivity (draggable retire line + income bar) ──
   const retAge = earliest !== null ? earliest : Math.min(65, p.deathAge - 1);
   renderChart3(p, retAge);
+  renderYearlyTable(p, retAge, inc);
 }
 
 // Auto-update on any parameter change
 document.querySelectorAll(".params input").forEach(input => {
   input.addEventListener("input", () => {
+    if (input.id === "p_return") document.getElementById("p_etf").value = "";
     saveParams();
     clearTimeout(debounceTimer);
     debounceTimer = setTimeout(recalculate, 300);
