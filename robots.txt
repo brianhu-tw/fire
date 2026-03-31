@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://brianhu-tw.github.io/fire/sitemap.xml
