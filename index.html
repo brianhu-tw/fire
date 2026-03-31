@@ -203,6 +203,7 @@
   }
   .param-group input, .param-group select {
     width: 100%;
+    height: 2.5rem;
     background: var(--bg);
     border: 1px solid var(--border);
     color: var(--text);
@@ -211,10 +212,12 @@
     font-size: 1rem;
     outline: none;
     transition: border-color 0.2s;
+    box-sizing: border-box;
   }
   .param-group input:focus, .param-group select:focus { border-color: var(--accent); }
   .param-group input.invalid { border-color: var(--red); background: rgba(239,68,68,0.06); }
-  .param-group .error-msg { font-size: 0.72rem; color: var(--red); margin-top: 0.25rem; min-height: 1rem; }
+  .param-group .error-msg { font-size: 0.72rem; color: var(--red); margin-top: 0.15rem; }
+  .param-group .error-msg:empty { display: none; }
 
   .advanced { margin-top: 1rem; }
   .advanced summary {
@@ -446,7 +449,7 @@
 
 <header>
   <h1>幾歲能退休？</h1>
-  <p>是還要工作多久？假設每年存下的錢都投入大盤，來看看什麼時候能財務自由</p>
+  <p>是還要工作多久？假設每年存下的錢都投入大盤，來看看什麼時候能財富自由</p>
 </header>
 
 <!-- ── Parameter Panel ── -->
@@ -491,7 +494,7 @@
         </div>
         <div class="param-group">
           <label for="p_return">年報酬率 (%)<span class="info-tip" data-tip="你預期投資組合每年平均能賺多少。數字越高假設越樂觀，沒把握的話建議保守一點，結果會更可靠">&#9432;</span></label>
-          <input type="number" id="p_return" value="7" step="0.5" min="1" max="15">
+          <input type="number" id="p_return" value="7" step="0.5" min="0" max="15">
           <div class="error-msg" id="err_return"></div>
         </div>
         <div class="param-group">
@@ -608,7 +611,7 @@
 
 <footer>
   <p>此分析僅供參考，不構成投資建議。實際報酬率會波動，當個方向參考就好。</p>
-  <p style="margin-top:0.3rem;">幾歲能退休？ &copy; 2026 brianhu-tw</p>
+  <p style="margin-top:0.3rem;">幾歲能退休？ &copy; 2026 brianhu-tw ｜ <span id="build-hash"></span></p>
 </footer>
 
 </div>
@@ -735,6 +738,20 @@ MONEY_FIELDS.forEach(id => {
   });
 });
 
+// Focus: clear if value equals default; Blur: restore default if empty
+document.querySelectorAll(".params input").forEach(el => {
+  const isMoney = MONEY_FIELDS.includes(el.id);
+  const def = DEFAULTS[el.id] || "0";
+  el.addEventListener("focus", () => {
+    const v = isMoney ? stripCommas(el.value) : el.value;
+    if (v === stripCommas(def)) el.value = "";
+  });
+  el.addEventListener("blur", () => {
+    const v = isMoney ? stripCommas(el.value).trim() : el.value.trim();
+    if (v === "") el.value = def;
+  });
+});
+
 // Restore saved / URL params (after MONEY_FIELDS is ready)
 restoreParams();
 if (+document.getElementById("p_return").value !== 7 || +document.getElementById("p_inflation").value !== 3 || +document.getElementById("p_incGrowRate").value !== 0) {
@@ -748,7 +765,7 @@ function getParams() {
     assets:      clamp(getNumericValue("p_assets"), 0, 1e10),
     income:      clamp(getNumericValue("p_income"), 0, 1e10),
     expenses:    clamp(getNumericValue("p_expenses"), 0, 1e10),
-    nomReturn:   clamp(+document.getElementById("p_return").value, 1, 15) / 100,
+    nomReturn:   clamp(+document.getElementById("p_return").value, 0, 15) / 100,
     inflation:   clamp(+document.getElementById("p_inflation").value, 0, 10) / 100,
     incGrowRate: clamp(+document.getElementById("p_incGrowRate").value, 0, 10) / 100,
     deathAge,
@@ -1181,7 +1198,7 @@ const dragLinePlugin = {
         ctx.strokeStyle = `rgba(34,197,94,${alpha})`;
         ctx.beginPath(); ctx.arc(incX, incY, radius, 0, Math.PI * 2); ctx.stroke();
         ctx.restore();
-        requestAnimationFrame(() => chart.draw());
+        requestAnimationFrame(() => { if (chart.ctx) chart.draw(); });
       } else {
         c3PulseStart = 0;
       }
@@ -1326,6 +1343,7 @@ function renderChart3(p, retAge) {
   });
   c3BindEvents(document.getElementById("chart3"), charts.c3);
   c3PulseStart = Date.now();
+  window.addEventListener("scroll", () => { c3PulseStart = 0; }, { once: true, passive: true });
 }
 
 function updateConclusion(earliest, p) {
@@ -1355,7 +1373,7 @@ const VALIDATIONS = {
   p_assets:    { min: 0,  max: 1e10, integer: false, errId: "err_assets",    emptyMsg: "請輸入資產金額", rangeMsg: "資產不能為負數" },
   p_income:    { min: 0,  max: 1e10, integer: false, errId: "err_income",    emptyMsg: "請輸入年收入",   rangeMsg: "收入不能為負數" },
   p_expenses:  { min: 0,  max: 1e10, integer: false, errId: "err_expenses",  emptyMsg: "請輸入年支出",   rangeMsg: "支出不能為負數" },
-  p_return:    { min: 1,  max: 15,   integer: false, errId: "err_return",    emptyMsg: "請輸入報酬率",   rangeMsg: "報酬率需介於 1%–15%" },
+  p_return:    { min: 0,  max: 15,   integer: false, errId: "err_return",    emptyMsg: "請輸入報酬率",   rangeMsg: "報酬率需介於 0%–15%" },
   p_inflation:   { min: 0,  max: 10,   integer: false, errId: "err_inflation",   emptyMsg: "請輸入通膨率",       rangeMsg: "通膨率需介於 0%–10%" },
   p_incGrowRate: { min: 0,  max: 10,   integer: false, errId: "err_incGrowRate", emptyMsg: "請輸入成長率",       rangeMsg: "成長率需介於 0%–10%" },
 };
@@ -1453,13 +1471,24 @@ function recalculate() {
   renderYearlyTable(p, retAge);
 }
 
-// Auto-update on any parameter change
-document.querySelectorAll(".params input").forEach(input => {
+// Number inputs: debounce on every keystroke / step click
+document.querySelectorAll('.params input[type="number"]').forEach(input => {
   input.addEventListener("input", () => {
     if (input.id === "p_return") document.getElementById("p_etf").value = "";
     saveParams();
     clearTimeout(debounceTimer);
     debounceTimer = setTimeout(recalculate, 300);
+  });
+});
+
+// Text/money inputs: recalculate on blur or Enter
+document.querySelectorAll('.params input[type="text"]').forEach(input => {
+  input.addEventListener("blur", () => {
+    saveParams();
+    recalculate();
+  });
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") { input.blur(); }
   });
 });
 
@@ -1500,6 +1529,10 @@ document.addEventListener("click", e => {
 
 // Initial render
 recalculate();
+
+// Build hash
+fetch("https://api.github.com/repos/brianhu-tw/fire/commits/main",{headers:{Accept:"application/vnd.github.sha"}})
+  .then(r=>r.text()).then(h=>{document.getElementById("build-hash").textContent=h.slice(0,7)}).catch(()=>{});
 }); // end DOMContentLoaded
 </script>
 
