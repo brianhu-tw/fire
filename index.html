@@ -218,6 +218,21 @@
   .param-group input.invalid { border-color: var(--red); background: rgba(239,68,68,0.06); }
   .param-group .error-msg { font-size: 0.72rem; color: var(--red); margin-top: 0.15rem; }
   .param-group .error-msg:empty { display: none; }
+  .param-group.hidden { display: none; }
+  @keyframes fadeSlideIn {
+    from { opacity: 0; transform: translateY(-8px); }
+  }
+  @keyframes fadeOut {
+    to { opacity: 0; }
+  }
+  .etf-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+  }
+  @media (max-width: 600px) {
+    .advanced .param-grid { grid-template-columns: 1fr 1fr; }
+  }
 
   /* ── Collapsible sections (shared) ── */
   .params > details { margin-top: 1rem; }
@@ -491,7 +506,7 @@
     font-size: 0.72rem;
     color: var(--text-muted);
   }
-  .loan-row { margin-bottom: 0.3rem; }
+  .loan-row { margin-bottom: 0.4rem; }
   .loan-header.simple,  .loan-row.simple  { grid-template-columns: 5fr 5fr 3fr 1.2rem; }
   .loan-header.precise, .loan-row.precise { grid-template-columns: 4fr 6fr 2.5fr 2.5fr 4fr 1.2rem; }
   .loan-row label { display: none; }
@@ -501,10 +516,11 @@
     .loan-row.simple, .loan-row.precise {
       grid-template-columns: 1fr 1fr;
       position: relative;
-      padding-bottom: 0.5rem;
-      margin-bottom: 0.5rem;
+      padding-bottom: 0.6rem;
+      margin-bottom: 0.6rem;
       border-bottom: 1px solid var(--border);
     }
+    .loan-row:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
     .loan-row > div:first-child { grid-column: 1 / -1; }
     .loan-row .loan-remove-btn {
       position: absolute;
@@ -606,34 +622,39 @@
     </details>
     <details class="advanced">
       <summary>進階設定</summary>
-      <div class="param-grid" style="margin-top:1rem;">
-        <div class="param-group">
+      <div class="etf-row" style="margin-top:1rem;">
+        <div class="param-group" id="etf-group">
           <label for="p_etf">投資標的<span class="info-tip" data-tip="選擇後會自動帶入該標的成立以來的年化報酬率（含息再投入）。歷史報酬不代表未來績效">&#9432;</span></label>
           <select id="p_etf">
-            <option value="">自訂</option>
-            <option value="12.5">0050 台灣50（12.5%）</option>
+            <option value="12.5" selected>0050 台灣50（12.5%）</option>
             <option value="14">VOO S&amp;P 500（14%）</option>
             <option value="10">QQQ Nasdaq 100（10%）</option>
             <option value="9">VTI 美國全市場（9%）</option>
             <option value="8.5">VT 全球全市場（8.5%）</option>
+            <option value="">自訂</option>
           </select>
         </div>
-        <div class="param-group">
+        <div class="param-group hidden" id="return-group">
           <label for="p_return">年報酬率 (%)<span class="info-tip" data-tip="你預期投資組合每年平均能賺多少。數字越高假設越樂觀，沒把握的話建議保守一點，結果會更可靠">&#9432;</span></label>
-          <input type="number" id="p_return" value="7" step="0.5" min="0" max="15">
+          <input type="number" id="p_return" value="12.5" step="0.5" min="0" max="15">
           <div class="error-msg" id="err_return"></div>
         </div>
+      </div>
+      <div class="param-grid" style="margin-top:1rem;">
         <div class="param-group">
           <label for="p_inflation">通膨率 (%)<span class="info-tip" data-tip="物價每年上漲的幅度。台灣近年約 2-3%">&#9432;</span></label>
           <input type="number" id="p_inflation" value="3" step="0.5" min="0" max="10">
           <div class="error-msg" id="err_inflation"></div>
         </div>
-      </div>
-      <div class="param-grid" style="margin-top:1rem;">
         <div class="param-group">
           <label for="p_incGrowRate">薪資年成長率 (%)<span class="info-tip" data-tip="每年薪資成長幅度，0% 代表薪水固定不變。不含通膨，純粹是加薪幅度">&#9432;</span></label>
           <input type="number" id="p_incGrowRate" value="0" step="0.5" min="0" max="10">
           <div class="error-msg" id="err_incGrowRate"></div>
+        </div>
+        <div class="param-group">
+          <label for="p_expGrowRate">支出年成長率 (%)<span class="info-tip" data-tip="每年支出額外成長幅度（不含通膨）。隨著年紀增長，醫療、生活品質等支出可能上升">&#9432;</span></label>
+          <input type="number" id="p_expGrowRate" value="0" step="0.5" min="0" max="10">
+          <div class="error-msg" id="err_expGrowRate"></div>
         </div>
       </div>
     </details>
@@ -892,7 +913,7 @@ function renderLoanRows() {
     if (loanMode === "simple") {
       return `
       <div class="loan-row simple" data-index="${i}">
-        <div><label>名稱</label><input type="text" data-field="name" value="${loan.name || ""}"></div>
+        <div><label>名稱</label><input type="text" data-field="name" value="${escAttr(loan.name || "")}"></div>
         <div><label>每月還款 (NT$)</label><input type="text" inputmode="numeric" data-field="monthlyPayment" value="${addCommas(loan.monthlyPayment || 0)}"></div>
         <div><label>剩餘期數（月）</label><input type="number" data-field="remainingMonths" value="${rm}" min="0" step="1"></div>
         <button type="button" class="loan-remove-btn" title="刪除">&times;</button>
@@ -902,11 +923,11 @@ function renderLoanRows() {
       const mpText = mp > 0 ? addCommas(mp) : "—";
       return `
       <div class="loan-row precise" data-index="${i}">
-        <div><label>名稱</label><input type="text" data-field="name" value="${loan.name || ""}"></div>
+        <div><label>名稱</label><input type="text" data-field="name" value="${escAttr(loan.name || "")}"></div>
         <div><label>貸款餘額 (NT$)</label><input type="text" inputmode="numeric" data-field="balance" value="${addCommas(loan.balance || 0)}"></div>
         <div><label>年利率 (%)</label><input type="number" data-field="rate" value="${loan.rate ? +(loan.rate * 100).toFixed(2) : 0}" min="0" step="0.1"></div>
         <div><label>剩餘期數（月）</label><input type="number" data-field="remainingMonths" value="${rm}" min="0" step="1"></div>
-        <span class="loan-monthly-display">${mpText}</span>
+        <div><label>月付額</label><span class="loan-monthly-display">${mpText}</span></div>
         <button type="button" class="loan-remove-btn" title="刪除">&times;</button>
       </div>`;
     }
@@ -981,8 +1002,8 @@ function bindLoanEvents() {
 }
 
 // ── localStorage + URL persistence ──
-const ALL_FIELDS = ["p_age", "p_assets", "p_income", "p_expenses", "p_return", "p_inflation", "p_incGrowRate"];
-const URL_KEYS = { p_age: "age", p_assets: "assets", p_income: "income", p_expenses: "expenses", p_return: "return", p_inflation: "inflation", p_incGrowRate: "incGrowRate" };
+const ALL_FIELDS = ["p_age", "p_assets", "p_income", "p_expenses", "p_return", "p_inflation", "p_incGrowRate", "p_expGrowRate"];
+const URL_KEYS = { p_age: "age", p_assets: "assets", p_income: "income", p_expenses: "expenses", p_return: "return", p_inflation: "inflation", p_incGrowRate: "incGrowRate", p_expGrowRate: "expGrowRate" };
 const LS_KEY = "fire_params";
 function saveParams() {
   const data = {};
@@ -1001,7 +1022,12 @@ function restoreParams() {
       }
     });
     const etf = sp.get("etf");
-    if (etf) document.getElementById("p_etf").value = etf;
+    if (etf != null) {
+      document.getElementById("p_etf").value = etf;
+    } else if (sp.has(URL_KEYS.p_return)) {
+      // URL has custom return rate but no ETF — set to 自訂
+      document.getElementById("p_etf").value = "";
+    }
     const urlLoans = sp.get("loans");
     if (urlLoans) {
       try { loans = JSON.parse(urlLoans); saveLoans(); } catch(e) {}
@@ -1020,6 +1046,10 @@ function restoreParams() {
     if (!raw) return;
     const data = JSON.parse(raw);
     ALL_FIELDS.forEach(id => { if (data[id] != null) document.getElementById(id).value = data[id]; });
+    // If restored return rate doesn't match any ETF option, switch to 自訂
+    const etfEl = document.getElementById("p_etf");
+    const retVal = document.getElementById("p_return").value;
+    if (etfEl.value && etfEl.value !== retVal) etfEl.value = "";
   } catch(e) {}
 }
 
@@ -1031,7 +1061,7 @@ window.shareURL = function() {
     params.set(URL_KEYS[id], val);
   });
   const etf = document.getElementById("p_etf").value;
-  if (etf) params.set("etf", etf);
+  params.set("etf", etf);
   if (loans.length > 0) {
     params.set("loans", JSON.stringify(loans));
     params.set("loanMode", loanMode);
@@ -1044,10 +1074,10 @@ window.shareURL = function() {
   });
 }
 
-const DEFAULTS = { p_age: "22", p_assets: "0", p_income: "546,000", p_expenses: "320,000", p_return: "7", p_inflation: "3", p_incGrowRate: "0" };
+const DEFAULTS = { p_age: "22", p_assets: "0", p_income: "546,000", p_expenses: "320,000", p_return: "12.5", p_inflation: "3", p_incGrowRate: "0", p_expGrowRate: "0" };
 window.resetDefaults = function() {
   Object.entries(DEFAULTS).forEach(([id, val]) => { document.getElementById(id).value = val; });
-  document.getElementById("p_etf").value = "";
+  document.getElementById("p_etf").value = "12.5";
   loans = [];
   loanMode = "simple";
   saveLoanMode();
@@ -1055,6 +1085,7 @@ window.resetDefaults = function() {
   renderLoanRows();
   saveLoans();
   saveParams();
+  syncReturnVisibility();
   recalculate();
   showToast("已重設為預設值");
 }
@@ -1089,7 +1120,7 @@ function initParamBindings() {
   });
   initNumberInput(document.getElementById("p_return"), {
     defaultVal: DEFAULTS.p_return, min: 0,
-    onInput() { document.getElementById("p_etf").value = ""; debouncedRecalc(); },
+    onInput() { document.getElementById("p_etf").value = ""; syncReturnVisibility(); debouncedRecalc(); },
     onBlur: blurRecalc
   });
   initNumberInput(document.getElementById("p_inflation"), {
@@ -1102,6 +1133,33 @@ function initParamBindings() {
     onInput: debouncedRecalc,
     onBlur: blurRecalc
   });
+  initNumberInput(document.getElementById("p_expGrowRate"), {
+    defaultVal: DEFAULTS.p_expGrowRate, min: 0,
+    onInput: debouncedRecalc,
+    onBlur: blurRecalc
+  });
+}
+
+function syncReturnVisibility() {
+  const etf = document.getElementById("p_etf");
+  const rg = document.getElementById("return-group");
+  const shouldHide = !!etf.value;
+  const isHidden = rg.classList.contains("hidden");
+  if (shouldHide && !isHidden) {
+    rg.style.animation = "fadeOut 0.15s ease forwards";
+    rg.addEventListener("animationend", function h() {
+      rg.removeEventListener("animationend", h);
+      rg.classList.add("hidden");
+      rg.style.animation = "";
+    });
+  } else if (!shouldHide && isHidden) {
+    rg.classList.remove("hidden");
+    rg.style.animation = "none";
+    void rg.offsetWidth;
+    rg.style.animation = "fadeSlideIn 0.2s ease";
+  } else if (shouldHide && isHidden) {
+    // already hidden, no-op (e.g. initial load)
+  }
 }
 
 // Bind main param inputs, then restore saved / URL params
@@ -1111,10 +1169,11 @@ restoreLoanMode();
 restoreLoans();
 updateModeToggleUI();
 renderLoanRows();
+syncReturnVisibility();
 if (loans.length > 0) {
   document.getElementById("loansSection").open = true;
 }
-if (+document.getElementById("p_return").value !== 7 || +document.getElementById("p_inflation").value !== 3 || +document.getElementById("p_incGrowRate").value !== 0) {
+if (+document.getElementById("p_return").value !== 12.5 || +document.getElementById("p_inflation").value !== 3 || +document.getElementById("p_incGrowRate").value !== 0 || +document.getElementById("p_expGrowRate").value !== 0) {
   document.querySelector("details.advanced").open = true;
 }
 
@@ -1164,12 +1223,14 @@ let deathAge = 90;
 
 function getParams() {
   return {
+    startAge:    currentAge(),
     assets:      clamp(getNumericValue("p_assets"), 0, 1e10),
     income:      clamp(getNumericValue("p_income"), 0, 1e10),
     expenses:    clamp(getNumericValue("p_expenses"), 0, 1e10),
     nomReturn:   clamp(+document.getElementById("p_return").value, 0, 15) / 100,
     inflation:   clamp(+document.getElementById("p_inflation").value, 0, 10) / 100,
     incGrowRate: clamp(+document.getElementById("p_incGrowRate").value, 0, 10) / 100,
+    expGrowRate: clamp(+document.getElementById("p_expGrowRate").value, 0, 10) / 100,
     deathAge,
   };
 }
@@ -1201,10 +1262,6 @@ function escAttr(s) {
   return s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
-function toSup(n) {
-  return String(n).split("").map(d => "⁰¹²³⁴⁵⁶⁷⁸⁹"[+d]).join("");
-}
-
 function buildLoanFormula(loans, yearIndex, mode) {
   if (!loans || !loans.length) return "";
   const monthStart = yearIndex * 12;
@@ -1229,7 +1286,7 @@ function buildLoanFormula(loans, yearIndex, mode) {
 function simulate(retireAge, p, customReturn, incomeOverride, loans, lMode) {
   const nr = customReturn ?? p.nomReturn;
   const deathAge = p.deathAge;
-  const startAge = currentAge();
+  const startAge = p.startAge ?? currentAge();
   let portfolio = p.assets;
   let minPort = portfolio;
   const ages = [], reals = [], nominals = [];
@@ -1248,7 +1305,8 @@ function simulate(retireAge, p, customReturn, incomeOverride, loans, lMode) {
     const ret = portfolio > 0 ? portfolio * nr : 0;
     yearReturns.push(ret);
     if (portfolio > 0) portfolio *= (1 + nr);
-    const exp = p.expenses * inf;
+    const expGrow = p.expGrowRate ? Math.pow(1 + p.expGrowRate, age - startAge) : 1;
+    const exp = p.expenses * inf * expGrow;
     const loanPay = calcYearLoanPayment(loans || [], age - startAge, lMode);
     yearLoanPayments.push(loanPay);
 
@@ -1276,7 +1334,8 @@ function simulate(retireAge, p, customReturn, incomeOverride, loans, lMode) {
 
 function findEarliest(p, customReturn, incomeOverride, loans, lMode) {
   const lifeP = { ...p, deathAge: AVG_LIFESPAN };
-  for (let ra = currentAge(); ra < AVG_LIFESPAN; ra++) {
+  const start = p.startAge ?? currentAge();
+  for (let ra = start; ra < AVG_LIFESPAN; ra++) {
     const res = simulate(ra, lifeP, customReturn, incomeOverride, loans, lMode);
     if (res.feasible) return ra;
   }
@@ -1355,9 +1414,7 @@ function legendLeave(evt, legendItem, legend) {
 let charts = {};
 
 const CHART_COLORS = {
-  blue: "#6366f1", amber: "#f59e0b", green: "#22c55e", red: "#ef4444",
-  pink: "#ec4899", cyan: "#06b6d4", purple: "#a78bfa", orange: "#f97316",
-  lime: "#84cc16",
+  amber: "#f59e0b", green: "#22c55e", red: "#ef4444",
 };
 
 const gridColor = "rgba(255,255,255,0.06)";
@@ -1459,6 +1516,7 @@ function c3Returns(p) {
   return [base - 0.02, base, base + 0.02];
 }
 const C3_COLORS = [CHART_COLORS.red, CHART_COLORS.amber, CHART_COLORS.green];
+const C3_LABELS = ["悲觀", "基準", "樂觀"];
 
 // Retirement line state
 let c3RetireAge = 40;
@@ -1781,7 +1839,6 @@ function renderChart3(p, retAge) {
 
   updateC3Summary(p);
   const base = simulate(retAge, p, undefined, undefined, loans, loanMode);
-  const C3_LABELS = ["悲觀", "基準", "樂觀"];
   const datasets = c3Returns(p).map((nr, i) => {
     const r = simulate(retAge, p, nr, undefined, loans, loanMode);
     return {
@@ -1800,6 +1857,35 @@ function renderChart3(p, retAge) {
   c3BindEvents(document.getElementById("chart3"), charts.c3);
   c3PulseStart = Date.now();
   window.addEventListener("scroll", () => { c3PulseStart = 0; }, { once: true, passive: true });
+}
+
+// Incremental chart update — avoids destroy/recreate when only values change.
+// Returns false if a full rebuild is needed (age range changed or chart missing).
+function updateChart3(p, retAge) {
+  const chart = charts.c3;
+  if (!chart) return false;
+
+  const startAge = p.startAge ?? currentAge();
+  const labels = chart.data.labels;
+  if (labels[0] !== startAge || labels[labels.length - 1] !== p.deathAge) return false;
+
+  // Reset drag state
+  c3RetireAge = retAge; c3Dragging = false; c3Hovered = false;
+  c3IncAge = startAge; c3IncAmount = Math.round(p.income / 1e4);
+  c3IncOrigAge = c3IncAge; c3IncOrigAmount = c3IncAmount;
+  c3IncDragging = false; c3IncHovered = false;
+
+  // Update datasets
+  c3Returns(p).forEach((nr, i) => {
+    const r = simulate(retAge, p, nr, undefined, loans, loanMode);
+    chart.data.datasets[i].data = r.reals.map(v => v / 1e4);
+    chart.data.datasets[i].label = `${C3_LABELS[i]} ${(nr*100).toFixed(0)}%`;
+  });
+
+  updateC3Summary(p);
+  c3YMaxWidth = 0;
+  chart.update("none");
+  return true;
 }
 
 function updateConclusion(earliest, p) {
@@ -1832,6 +1918,7 @@ const VALIDATIONS = {
   p_return:    { min: 0,  max: 15,   integer: false, errId: "err_return",    emptyMsg: "請輸入報酬率",   rangeMsg: "報酬率需介於 0%–15%" },
   p_inflation:   { min: 0,  max: 10,   integer: false, errId: "err_inflation",   emptyMsg: "請輸入通膨率",       rangeMsg: "通膨率需介於 0%–10%" },
   p_incGrowRate: { min: 0,  max: 10,   integer: false, errId: "err_incGrowRate", emptyMsg: "請輸入成長率",       rangeMsg: "成長率需介於 0%–10%" },
+  p_expGrowRate: { min: 0,  max: 10,   integer: false, errId: "err_expGrowRate", emptyMsg: "請輸入成長率",       rangeMsg: "成長率需介於 0%–10%" },
 };
 
 function validateAll() {
@@ -1949,7 +2036,12 @@ function renderYearlyTable(p, retireAge) {
         expF = "年支出";
       } else {
         const prevExp = Math.round(r.yearExpenses[i - 1]);
-        expF = "前年 " + addCommas(prevExp) + " × " + inflMult + "\n= " + addCommas(exp_i);
+        if (p.expGrowRate > 0) {
+          const combinedMult = prevExp > 0 ? parseFloat((exp_i / prevExp).toFixed(4)) : inflMult;
+          expF = "前年 " + addCommas(prevExp) + " × " + combinedMult + "\n= " + addCommas(exp_i);
+        } else {
+          expF = "前年 " + addCommas(prevExp) + " × " + inflMult + "\n= " + addCommas(exp_i);
+        }
       }
     }
 
@@ -1983,10 +2075,8 @@ function renderYearlyTable(p, retireAge) {
 let debounceTimer;
 function recalculate() {
   if (!validateAll()) return;
-  destroyAll();
   const p = getParams();
-  const age = currentAge();
-  if (age >= p.deathAge) return; // nothing to simulate
+  if (p.startAge >= p.deathAge) return; // nothing to simulate
 
   const incWan = Math.round(p.income / 1e4);
   C3_INC_MAX = Math.max(500, Math.round(incWan * 1.5 / 50) * 50);
@@ -1997,7 +2087,10 @@ function recalculate() {
 
   // ── Chart 3: Sensitivity (draggable retire line + income bar) ──
   const retAge = earliest !== null ? earliest : Math.min(65, p.deathAge - 1);
-  renderChart3(p, retAge);
+  if (!updateChart3(p, retAge)) {
+    destroyAll();
+    renderChart3(p, retAge);
+  }
   renderYearlyTable(p, retAge);
 }
 
@@ -2005,6 +2098,7 @@ function recalculate() {
 
 // ── ETF preset selector ──
 document.getElementById("p_etf").addEventListener("change", function() {
+  syncReturnVisibility();
   if (!this.value) return;
   document.getElementById("p_return").value = this.value;
   saveParams();
@@ -2013,6 +2107,7 @@ document.getElementById("p_etf").addEventListener("change", function() {
 });
 
 // ── Tooltip: click to toggle (mobile uses DOM bubble, desktop uses CSS ::after) ──
+const hoverMQ = window.matchMedia("(hover: hover)");
 let activeBubble = null;
 function removeBubble() {
   if (activeBubble) { activeBubble.remove(); activeBubble = null; }
@@ -2039,13 +2134,13 @@ document.addEventListener("click", e => {
   if (!target) { removeBubble(); return; }
   if (activeBubble && activeBubble._owner === target) { removeBubble(); return; }
   removeBubble();
-  if (window.matchMedia("(hover: hover)").matches) return;
+  if (hoverMQ.matches) return;
   showBubble(target, tip ? tip.getAttribute("data-tip") : fc.getAttribute("data-formula"));
 });
 // ── Formula tooltip: desktop hover ──
 document.addEventListener("mouseover", e => {
   const td = e.target.closest("td[data-formula]");
-  if (!td || !window.matchMedia("(hover: hover)").matches) return;
+  if (!td || !hoverMQ.matches) return;
   if (activeBubble && activeBubble._owner === td) return;
   removeBubble();
   showBubble(td, td.getAttribute("data-formula"));

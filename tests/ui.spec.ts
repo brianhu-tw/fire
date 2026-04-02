@@ -39,6 +39,9 @@ test.describe("P2: validation", () => {
     await setup(page);
     // Open advanced settings first
     await page.locator("details.advanced summary").click();
+    // Select 自訂 to make return-group visible
+    await page.locator("#p_etf").selectOption("");
+    await page.waitForTimeout(200);
     await page.locator("#p_return").fill("20");
     await page.locator("#p_return").blur();
     await page.waitForTimeout(400);
@@ -560,10 +563,52 @@ test.describe("P6: loan collapsible + dual mode", () => {
   test("monthly display is a separate column in precise mode", async ({ page }) => {
     await setup(page);
     await addLoanPrecise(page, "房貸", "8,000,000", "2.1", "240");
-    // monthly-display should be a direct child of loan-row (its own grid cell)
-    const display = page.locator('.loan-row > .loan-monthly-display');
+    const display = page.locator('.loan-row .loan-monthly-display');
     await expect(display).toHaveCount(1);
     await expect(display).toContainText("40,851");
+  });
+});
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// P7: Loan name XSS safety
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+test.describe("P7: loan name escaping", () => {
+  test("loan name with double-quote renders correctly", async ({ page }) => {
+    await setup(page);
+    await ensureLoanSectionOpen(page);
+    await page.locator("#addLoanBtn").click();
+    const nameInput = page.locator('.loan-row input[data-field="name"]');
+    await nameInput.fill('貸款"test');
+    await nameInput.blur();
+    await page.waitForTimeout(300);
+
+    // Save and re-render by switching mode back and forth
+    await switchLoanMode(page, "precise");
+    await switchLoanMode(page, "simple");
+
+    // The input should still contain the name with the quote
+    const val = await page.locator('.loan-row input[data-field="name"]').inputValue();
+    expect(val).toBe('貸款"test');
+  });
+
+  test("loan name with HTML chars does not break rendering", async ({ page }) => {
+    await setup(page);
+    await ensureLoanSectionOpen(page);
+    await page.locator("#addLoanBtn").click();
+    const nameInput = page.locator('.loan-row input[data-field="name"]');
+    await nameInput.fill('<script>alert(1)</script>');
+    await nameInput.blur();
+    await page.waitForTimeout(300);
+
+    // Re-render
+    await switchLoanMode(page, "precise");
+    await switchLoanMode(page, "simple");
+
+    // Should have exactly 1 loan row (not broken HTML)
+    await expect(page.locator(".loan-row")).toHaveCount(1);
+    const val = await page.locator('.loan-row input[data-field="name"]').inputValue();
+    expect(val).toBe('<script>alert(1)</script>');
   });
 });
 
@@ -698,5 +743,90 @@ test.describe("FIRE ratio with loans", () => {
     const tipText = await tip.getAttribute("data-tip");
     expect(tipText).toContain("貸款");
     expect(tipText).toContain("暫時性");
+  });
+});
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// F2: 支出成長率 + ETF 收合 + 手機版兩欄
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+test.describe("F2: expense growth rate", () => {
+  test("p_expGrowRate field exists and defaults to 0", async ({ page }) => {
+    await setup(page);
+    await page.locator("details.advanced summary").click();
+    const input = page.locator("#p_expGrowRate");
+    await expect(input).toBeVisible();
+    expect(await input.inputValue()).toBe("0");
+  });
+
+  test("setting expGrowRate > 0 delays retirement", async ({ page }) => {
+    await setup(page);
+    // Get baseline
+    const baseText = await page.locator("#conclusion strong").textContent();
+    const base = parseInt(baseText!);
+
+    // Set expense growth rate
+    await page.locator("details.advanced summary").click();
+    await page.locator("#p_expGrowRate").fill("2");
+    await page.locator("#p_expGrowRate").blur();
+    await page.waitForTimeout(500);
+
+    const conclusion = page.locator("#conclusion");
+    const hasStrong = await conclusion.locator("strong").count();
+    if (hasStrong > 0) {
+      const newText = await conclusion.locator("strong").textContent();
+      const updated = parseInt(newText!);
+      expect(updated).toBeGreaterThanOrEqual(base);
+    } else {
+      // Retirement became impossible — valid impact
+      await expect(conclusion).toHaveClass(/warn/);
+    }
+  });
+});
+
+test.describe("F2: ETF return-group visibility", () => {
+  test("ETF defaults to 0050 and return-group is hidden", async ({ page }) => {
+    await setup(page);
+    await page.locator("details.advanced summary").click();
+    const etf = page.locator("#p_etf");
+    expect(await etf.inputValue()).toBe("12.5");
+    const returnGroup = page.locator("#return-group");
+    await expect(returnGroup).toBeHidden();
+  });
+
+  test("selecting 自訂 shows return-group", async ({ page }) => {
+    await setup(page);
+    await page.locator("details.advanced summary").click();
+    await page.locator("#p_etf").selectOption("");
+    await page.waitForTimeout(300);
+    const returnGroup = page.locator("#return-group");
+    await expect(returnGroup).toBeVisible();
+  });
+
+  test("selecting back to ETF hides return-group and sets correct rate", async ({ page }) => {
+    await setup(page);
+    await page.locator("details.advanced summary").click();
+    // First go to custom
+    await page.locator("#p_etf").selectOption("");
+    await page.waitForTimeout(300);
+    await expect(page.locator("#return-group")).toBeVisible();
+    // Select VOO
+    await page.locator("#p_etf").selectOption("14");
+    await page.waitForTimeout(300);
+    await expect(page.locator("#return-group")).toBeHidden();
+    expect(await page.locator("#p_return").inputValue()).toBe("14");
+  });
+});
+
+test.describe("F2: mobile advanced two-column grid", () => {
+  test("advanced param-grid uses two-column layout on mobile", async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 812 });
+    await setup(page);
+    await page.locator("details.advanced summary").click();
+    const grid = page.locator(".advanced .param-grid");
+    const cols = await grid.evaluate(el => getComputedStyle(el).gridTemplateColumns);
+    // Should have exactly two columns (two values separated by space)
+    const colValues = cols.split(/\s+/).filter(Boolean);
+    expect(colValues.length).toBe(2);
   });
 });

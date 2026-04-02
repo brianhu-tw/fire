@@ -383,6 +383,32 @@ test.describe("simulate with loans", () => {
     expect(result.yearLoanPayments[3]).toBe(0);
   });
 
+  test("expGrowRate increases expenses beyond pure inflation", async ({ page }) => {
+    await fire(page);
+    await page.locator("#p_age").fill("30");
+    const [noGrow, withGrow] = await page.evaluate(() => {
+      const f = (window as any).__FIRE__;
+      const base = {
+        assets: 1_000_000,
+        income: 1_000_000,
+        expenses: 400_000,
+        nomReturn: 0.07,
+        inflation: 0.03,
+        incGrowRate: 0,
+        expGrowRate: 0,
+        deathAge: 90,
+      };
+      const grow = { ...base, expGrowRate: 0.02 };
+      const noGrow = f.simulate(50, base);
+      const withGrow = f.simulate(50, grow);
+      return [noGrow, withGrow];
+    });
+    // With expGrowRate, year 10 expense should be larger
+    expect(withGrow.yearExpenses[10]).toBeGreaterThan(noGrow.yearExpenses[10]);
+    // And portfolio should be smaller
+    expect(withGrow.reals[10]).toBeLessThan(noGrow.reals[10]);
+  });
+
   test("loan payments are not inflation-adjusted", async ({ page }) => {
     await fire(page);
     await page.locator("#p_age").fill("30");
@@ -505,6 +531,50 @@ test.describe("calcYearLoanPayment with mode", () => {
     expect(await call("calcYearLoanPayment", loans, 0, "simple")).toBe(10000 * 6);
     // yearIndex=1: monthStart=12 > 6 → 0
     expect(await call("calcYearLoanPayment", loans, 1, "simple")).toBe(0);
+  });
+});
+
+// ─── simulate with explicit startAge (pure function) ───
+test.describe("simulate with startAge param", () => {
+  test("uses p.startAge instead of DOM when provided", async ({ page }) => {
+    await fire(page);
+    // Set DOM age to 30 but pass startAge 40 in params
+    await page.locator("#p_age").fill("30");
+    const result = await page.evaluate(() => {
+      const f = (window as any).__FIRE__;
+      return f.simulate(50, {
+        assets: 1_000_000,
+        income: 500_000,
+        expenses: 300_000,
+        nomReturn: 0.07,
+        inflation: 0.03,
+        incGrowRate: 0,
+        deathAge: 90,
+        startAge: 40,
+      });
+    });
+    // Should start from age 40, not 30
+    expect(result.ages[0]).toBe(40);
+    expect(result.ages.length).toBe(51); // 40..90 inclusive
+  });
+
+  test("falls back to currentAge() when startAge is omitted", async ({ page }) => {
+    await fire(page);
+    await page.locator("#p_age").fill("25");
+    const result = await page.evaluate(() => {
+      const f = (window as any).__FIRE__;
+      return f.simulate(50, {
+        assets: 0,
+        income: 500_000,
+        expenses: 300_000,
+        nomReturn: 0.07,
+        inflation: 0.03,
+        incGrowRate: 0,
+        deathAge: 90,
+      });
+    });
+    // Should still start from DOM age 25
+    expect(result.ages[0]).toBe(25);
   });
 });
 
