@@ -696,17 +696,45 @@ test.describe("F1: table formula tooltips", () => {
     expect(await incCell.getAttribute("data-formula")).toBeNull();
   });
 
-  test("hover shows tooltip bubble with formula content", async ({ page }) => {
+  test("hover shows tooltip bubble with formula content (after delay)", async ({ page }) => {
     await setup(page);
     await page.locator(".yearly-table-wrap details summary").click();
     await page.waitForTimeout(300);
     // First row nominal column has formula "初始資產"
     const cell = page.locator(".yearly-table tbody tr:first-child td:nth-child(3)");
     await cell.hover();
-    await page.waitForTimeout(200);
+    // At 100ms the bubble should NOT be visible yet (hover delay is 300ms)
+    await page.waitForTimeout(100);
+    await expect(page.locator(".tip-bubble")).toHaveCount(0);
+    // After 300ms total the bubble should appear
+    await page.waitForTimeout(250);
     const bubble = page.locator(".tip-bubble");
     await expect(bubble).toBeVisible();
     await expect(bubble).toContainText("初始資產");
+  });
+
+  test("info-tip hover uses CSS ::after, not JS bubble", async ({ page }) => {
+    await setup(page);
+    const tip = page.locator(".info-tip").first();
+    await tip.hover();
+    await page.waitForTimeout(200);
+    // CSS ::after handles desktop tooltip; JS .tip-bubble should NOT appear
+    await expect(page.locator(".tip-bubble")).toHaveCount(0);
+  });
+
+  test("click event does not toggle off hover-created formula bubble", async ({ page }) => {
+    await setup(page);
+    await page.locator(".yearly-table-wrap details summary").click();
+    await page.waitForTimeout(300);
+    const cell = page.locator(".yearly-table tbody tr:first-child td:nth-child(3)");
+    // Hover to show bubble (300ms delay)
+    await cell.hover();
+    await page.waitForTimeout(400);
+    await expect(page.locator(".tip-bubble")).toBeVisible();
+    // Fire click event — should NOT dismiss hover bubble
+    await cell.dispatchEvent("click");
+    await page.waitForTimeout(100);
+    await expect(page.locator(".tip-bubble")).toBeVisible();
   });
 });
 
@@ -757,6 +785,37 @@ test.describe("F2: expense growth rate", () => {
     const input = page.locator("#p_expGrowRate");
     await expect(input).toBeVisible();
     expect(await input.inputValue()).toBe("0");
+  });
+
+  test("p_expGrowRate clears on focus and restores on empty blur", async ({ page }) => {
+    await setup(page);
+    await page.locator("details.advanced summary").click();
+    const input = page.locator("#p_expGrowRate");
+    // Focus should clear the default "0"
+    await input.focus();
+    expect(await input.inputValue()).toBe("");
+    // Blur empty → restores "0"
+    await input.blur();
+    expect(await input.inputValue()).toBe("0");
+  });
+
+  test("expense formula tooltip shows separate inflation and growth multipliers", async ({ page }) => {
+    await setup(page);
+    // Set non-zero expense growth rate
+    await page.locator("details.advanced summary").click();
+    await page.locator("#p_expGrowRate").fill("2");
+    await page.locator("#p_expGrowRate").blur();
+    await page.waitForTimeout(500);
+    // Open yearly table
+    await page.locator(".yearly-table-wrap details summary").click();
+    await page.waitForTimeout(300);
+    // Second row expense column
+    const cell = page.locator(".yearly-table tbody tr:nth-child(2) td:nth-child(6)");
+    const formula = await cell.getAttribute("data-formula");
+    expect(formula).not.toBeNull();
+    // Should show two separate multipliers, not a combined one
+    expect(formula).toContain("通膨");
+    expect(formula).toContain("支出成長");
   });
 
   test("setting expGrowRate > 0 delays retirement", async ({ page }) => {
@@ -828,5 +887,120 @@ test.describe("F2: mobile advanced two-column grid", () => {
     // Should have exactly two columns (two values separated by space)
     const colValues = cols.split(/\s+/).filter(Boolean);
     expect(colValues.length).toBe(2);
+  });
+});
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Mobile info-tip tooltip behavior
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+test.describe("mobile info-tip tooltips", () => {
+  test("tapping info-tip shows tooltip bubble on mobile", async ({ browser }) => {
+    const ctx = await browser.newContext({
+      viewport: { width: 375, height: 812 },
+      hasTouch: true,
+    });
+    const page = await ctx.newPage();
+    await setup(page);
+    const tip = page.locator("label[for='p_assets'] .info-tip");
+    await tip.tap();
+    await page.waitForTimeout(200);
+    const bubble = page.locator(".tip-bubble");
+    await expect(bubble).toBeVisible();
+    await expect(bubble).toContainText("投資的總金額");
+    await ctx.close();
+  });
+
+  test("tapping info-tip inside label does NOT focus the input", async ({ browser }) => {
+    const ctx = await browser.newContext({
+      viewport: { width: 375, height: 812 },
+      hasTouch: true,
+    });
+    const page = await ctx.newPage();
+    await setup(page);
+    const tip = page.locator("label[for='p_assets'] .info-tip");
+    await tip.tap();
+    await page.waitForTimeout(200);
+    const focused = await page.evaluate(() => document.activeElement?.id);
+    expect(focused).not.toBe("p_assets");
+    await ctx.close();
+  });
+
+  test("info-tip touch target is at least 44px", async ({ browser }) => {
+    const ctx = await browser.newContext({
+      viewport: { width: 375, height: 812 },
+      hasTouch: true,
+    });
+    const page = await ctx.newPage();
+    await setup(page);
+    const tip = page.locator("label[for='p_assets'] .info-tip");
+    const box = await tip.boundingBox();
+    expect(box!.width).toBeGreaterThanOrEqual(44);
+    expect(box!.height).toBeGreaterThanOrEqual(44);
+    await ctx.close();
+  });
+
+  test("second tap closes tooltip without triggering label or summary", async ({ browser }) => {
+    const ctx = await browser.newContext({
+      viewport: { width: 375, height: 812 },
+      hasTouch: true,
+    });
+    const page = await ctx.newPage();
+    await setup(page);
+    const tip = page.locator("label[for='p_assets'] .info-tip");
+    // First tap: show tooltip
+    await tip.tap();
+    await page.waitForTimeout(200);
+    await expect(page.locator(".tip-bubble")).toBeVisible();
+    // Second tap: close tooltip
+    await tip.tap();
+    await page.waitForTimeout(200);
+    // Tooltip should be gone
+    await expect(page.locator(".tip-bubble")).toHaveCount(0);
+    // Input should NOT be focused (label default action blocked)
+    const focused = await page.evaluate(() => document.activeElement?.id);
+    expect(focused).not.toBe("p_assets");
+    await ctx.close();
+  });
+
+  test("second tap on loans info-tip does not toggle details", async ({ browser }) => {
+    const ctx = await browser.newContext({
+      viewport: { width: 375, height: 812 },
+      hasTouch: true,
+    });
+    const page = await ctx.newPage();
+    await setup(page);
+    // Open loans section first
+    await page.locator("#loansSection summary").tap();
+    await page.waitForTimeout(200);
+    const wasOpen = await page.locator("#loansSection").evaluate(el => (el as HTMLDetailsElement).open);
+    expect(wasOpen).toBe(true);
+    // First tap on loans info-tip
+    const tip = page.locator("#loansSection .info-tip");
+    await tip.tap();
+    await page.waitForTimeout(200);
+    await expect(page.locator(".tip-bubble")).toBeVisible();
+    // Second tap — should close tooltip but NOT toggle the details
+    await tip.tap();
+    await page.waitForTimeout(200);
+    const stillOpen = await page.locator("#loansSection").evaluate(el => (el as HTMLDetailsElement).open);
+    expect(stillOpen).toBe(true);
+    await ctx.close();
+  });
+
+  test("no horizontal overflow on mobile viewport", async ({ browser }) => {
+    const ctx = await browser.newContext({
+      viewport: { width: 375, height: 812 },
+      hasTouch: true,
+    });
+    const page = await ctx.newPage();
+    await setup(page);
+    // Also open loans section and add a loan to test with more content
+    await page.locator("#loansSection summary").click();
+    await page.locator("#addLoanBtn").click();
+    await page.waitForTimeout(300);
+    const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
+    expect(scrollWidth).toBeLessThanOrEqual(375);
+    await ctx.close();
   });
 });

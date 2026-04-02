@@ -111,7 +111,6 @@
     padding: 1.25rem 1.5rem;
     transition: background 0.2s;
   }
-  .metric-card:hover { background: var(--card-hover); }
   .metric-card .label { font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em; }
   .metric-card .value { font-size: 1.6rem; font-weight: 700; margin-top: 0.25rem; }
   .metric-card .sub { font-size: 0.8rem; color: var(--text-muted); margin-top: 0.2rem; }
@@ -349,11 +348,18 @@
   @media (hover: hover) {
     .info-tip:hover::after { opacity: 1; }
   }
+  @media (max-width: 600px) {
+    .info-tip {
+      padding: 17px;
+      margin: -17px;
+      margin-left: calc(0.3rem - 17px);
+    }
+    .info-tip::after { display: none; }
+  }
   .tip-bubble {
     position: fixed;
     background: var(--card-hover);
     color: var(--text);
-    border: 1px solid var(--border);
     border-radius: 8px;
     padding: 0.6rem 0.8rem;
     font-size: 0.78rem;
@@ -588,7 +594,7 @@
     <div class="param-grid">
       <div class="param-group">
         <label for="p_age">目前年齡 (歲)</label>
-        <input type="number" id="p_age" value="22" step="1" min="0" max="80">
+        <input type="number" inputmode="numeric" id="p_age" value="22" step="1" min="0" max="80">
         <div class="error-msg" id="err_age"></div>
       </div>
       <div class="param-group">
@@ -636,24 +642,24 @@
         </div>
         <div class="param-group hidden" id="return-group">
           <label for="p_return">年報酬率 (%)<span class="info-tip" data-tip="你預期投資組合每年平均能賺多少。數字越高假設越樂觀，沒把握的話建議保守一點，結果會更可靠">&#9432;</span></label>
-          <input type="number" id="p_return" value="12.5" step="0.5" min="0" max="15">
+          <input type="number" inputmode="decimal" id="p_return" value="12.5" step="0.5" min="0" max="15">
           <div class="error-msg" id="err_return"></div>
         </div>
       </div>
       <div class="param-grid" style="margin-top:1rem;">
         <div class="param-group">
           <label for="p_inflation">通膨率 (%)<span class="info-tip" data-tip="物價每年上漲的幅度。台灣近年約 2-3%">&#9432;</span></label>
-          <input type="number" id="p_inflation" value="3" step="0.5" min="0" max="10">
+          <input type="number" inputmode="decimal" id="p_inflation" value="3" step="0.5" min="0" max="10">
           <div class="error-msg" id="err_inflation"></div>
         </div>
         <div class="param-group">
           <label for="p_incGrowRate">薪資年成長率 (%)<span class="info-tip" data-tip="每年薪資成長幅度，0% 代表薪水固定不變。不含通膨，純粹是加薪幅度">&#9432;</span></label>
-          <input type="number" id="p_incGrowRate" value="0" step="0.5" min="0" max="10">
+          <input type="number" inputmode="decimal" id="p_incGrowRate" value="0" step="0.5" min="0" max="10">
           <div class="error-msg" id="err_incGrowRate"></div>
         </div>
         <div class="param-group">
           <label for="p_expGrowRate">支出年成長率 (%)<span class="info-tip" data-tip="每年支出額外成長幅度（不含通膨）。隨著年紀增長，醫療、生活品質等支出可能上升">&#9432;</span></label>
-          <input type="number" id="p_expGrowRate" value="0" step="0.5" min="0" max="10">
+          <input type="number" inputmode="decimal" id="p_expGrowRate" value="0" step="0.5" min="0" max="10">
           <div class="error-msg" id="err_expGrowRate"></div>
         </div>
       </div>
@@ -779,16 +785,15 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
   };
 }
 
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-//  Simulation Engine (mirrors retirement_sim.py)
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// ══════════════════════════════════════
+// Shared constants & utilities
+// ══════════════════════════════════════
 
 function clamp(v, min, max) { return Math.min(max, Math.max(min, isNaN(v) ? min : v)); }
 function currentAge() { return clamp(+document.getElementById("p_age").value, 0, 80); }
 const CURRENT_YEAR = new Date().getFullYear();
 const AVG_LIFESPAN = 80;
 
-// ── Thousand-separator helpers ──
 function stripCommas(s) { return s.replace(/,/g, ""); }
 function addCommas(n) {
   const parts = n.toString().split(".");
@@ -798,55 +803,317 @@ function addCommas(n) {
 function getNumericValue(id) {
   return +stripCommas(document.getElementById(id).value);
 }
-
-// ── Unified input helpers ──
-function initMoneyInput(el, opts) {
-  const { defaultVal = "0", onInput, onBlur } = opts || {};
-  el.addEventListener("focus", () => {
-    if (stripCommas(el.value) === stripCommas(defaultVal)) el.value = "";
-  });
-  el.addEventListener("input", () => {
-    const raw = stripCommas(el.value).replace(/[^\d]/g, "");
-    if (raw === "") { el.value = ""; if (onInput) onInput(0); return; }
-    const pos = el.selectionStart;
-    const beforeLen = el.value.length;
-    el.value = addCommas(raw);
-    const afterLen = el.value.length;
-    el.setSelectionRange(pos + afterLen - beforeLen, pos + afterLen - beforeLen);
-    if (onInput) onInput(+raw);
-  });
-  el.addEventListener("blur", () => {
-    const v = stripCommas(el.value).trim();
-    if (v === "") el.value = defaultVal;
-    else el.value = addCommas(v);
-    if (onBlur) onBlur(+stripCommas(el.value));
-  });
-  el.addEventListener("keydown", (e) => { if (e.key === "Enter") el.blur(); });
+function escAttr(s) {
+  return s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+function hexAlpha(hex, a) {
+  const c = hex.replace("#", "");
+  const r = parseInt(c.substring(0, 2), 16);
+  const g = parseInt(c.substring(2, 4), 16);
+  const b = parseInt(c.substring(4, 6), 16);
+  return `rgba(${r},${g},${b},${a})`;
 }
 
-function initNumberInput(el, opts) {
-  const { defaultVal = "0", integer = false, min = 0, normalize = false, onInput, onBlur } = opts || {};
-  el.addEventListener("focus", () => {
-    if (el.value === String(defaultVal)) el.value = "";
-  });
-  el.addEventListener("input", () => {
-    if (onInput) onInput(+el.value);
-  });
-  el.addEventListener("blur", () => {
-    if (el.value.trim() === "") { el.value = defaultVal; }
-    else if (normalize) {
-      let v = +el.value;
-      if (isNaN(v)) v = min;
-      v = Math.max(min, v);
-      if (integer) v = Math.round(v);
-      el.value = v;
+// ══════════════════════════════════════
+// Module: Simulation (pure computation)
+// ══════════════════════════════════════
+const Simulation = (() => {
+
+  function calcMonthlyPayment(balance, annualRate, years) {
+    if (balance <= 0 || years <= 0) return 0;
+    if (annualRate <= 0) return Math.round(balance / (years * 12));
+    const r = annualRate / 12;
+    const n = years * 12;
+    return Math.round(balance * r * Math.pow(1 + r, n) / (Math.pow(1 + r, n) - 1));
+  }
+
+  function calcYearLoanPayment(loans, yearIndex, mode) {
+    if (!loans || !loans.length) return 0;
+    let total = 0;
+    const monthStart = yearIndex * 12;
+    for (const loan of loans) {
+      const rm = loan.remainingMonths || 0;
+      const active = Math.max(0, Math.min(12, rm - monthStart));
+      const mp = mode === "simple"
+        ? (loan.monthlyPayment || 0)
+        : calcMonthlyPayment(loan.balance, loan.rate, rm / 12);
+      total += mp * active;
     }
-    if (onBlur) onBlur(+el.value);
-  });
-}
+    return total;
+  }
 
-// ── Field lists ──
-const MONEY_FIELDS = ["p_assets", "p_income", "p_expenses"];
+  function buildLoanFormula(loans, yearIndex, mode) {
+    if (!loans || !loans.length) return "";
+    const monthStart = yearIndex * 12;
+    const parts = [];
+    let total = 0;
+    for (const loan of loans) {
+      const rm = loan.remainingMonths || 0;
+      const active = Math.max(0, Math.min(12, rm - monthStart));
+      if (active <= 0) continue;
+      const mp = mode === "simple"
+        ? (loan.monthlyPayment || 0)
+        : calcMonthlyPayment(loan.balance, loan.rate, rm / 12);
+      const loanTotal = mp * active;
+      total += loanTotal;
+      parts.push(`${loan.name}: ${addCommas(Math.round(mp))}/月 × ${active}月 = ${addCommas(Math.round(loanTotal))}`);
+    }
+    if (parts.length === 0) return "";
+    if (parts.length === 1) return parts[0];
+    return parts.join("\n") + "\n合計 " + addCommas(Math.round(total));
+  }
+
+  function simulate(retireAge, p, customReturn, incomeOverride, loans, lMode) {
+    const nr = customReturn ?? p.nomReturn;
+    const deathAge = p.deathAge;
+    const startAge = p.startAge ?? currentAge();
+    let portfolio = p.assets;
+    let minPort = portfolio;
+    const ages = [], reals = [], nominals = [];
+    const yearIncomes = [], yearExpenses = [], yearReturns = [], yearLoanPayments = [];
+
+    for (let age = startAge; age <= deathAge; age++) {
+      const inf = Math.pow(1 + p.inflation, age - startAge);
+
+      ages.push(age);
+      reals.push(portfolio / inf);
+      nominals.push(portfolio);
+
+      if (age === deathAge) { yearIncomes.push(0); yearExpenses.push(0); yearReturns.push(0); yearLoanPayments.push(0); break; }
+
+      const ret = portfolio > 0 ? portfolio * nr : 0;
+      yearReturns.push(ret);
+      if (portfolio > 0) portfolio *= (1 + nr);
+      const expGrow = p.expGrowRate ? Math.pow(1 + p.expGrowRate, age - startAge) : 1;
+      const exp = p.expenses * inf * expGrow;
+      const loanPay = calcYearLoanPayment(loans || [], age - startAge, lMode);
+      yearLoanPayments.push(loanPay);
+
+      if (age < retireAge) {
+        let inc = p.income;
+        let incGrowthYears = age - startAge;
+        if (incomeOverride && age >= incomeOverride.startAge) {
+          inc = incomeOverride.amount;
+          incGrowthYears = age - incomeOverride.startAge;
+        }
+        const incAdj = inc * Math.pow(1 + p.incGrowRate, incGrowthYears);
+        yearIncomes.push(incAdj);
+        yearExpenses.push(exp);
+        portfolio += incAdj - exp - loanPay;
+      } else {
+        yearIncomes.push(0);
+        yearExpenses.push(exp);
+        portfolio -= exp + loanPay;
+      }
+      minPort = Math.min(minPort, portfolio);
+    }
+
+    return { ages, reals, nominals, minPort, feasible: minPort >= 0, yearIncomes, yearExpenses, yearReturns, yearLoanPayments };
+  }
+
+  function findEarliest(p, customReturn, incomeOverride, loans, lMode) {
+    const lifeP = { ...p, deathAge: AVG_LIFESPAN };
+    const start = p.startAge ?? currentAge();
+    for (let ra = start; ra < AVG_LIFESPAN; ra++) {
+      const res = simulate(ra, lifeP, customReturn, incomeOverride, loans, lMode);
+      if (res.feasible) return ra;
+    }
+    return null;
+  }
+
+  function c3Returns(p) {
+    const base = p.nomReturn;
+    return [base - 0.02, base, base + 0.02];
+  }
+
+  return { calcMonthlyPayment, calcYearLoanPayment, buildLoanFormula, simulate, findEarliest, c3Returns };
+})();
+
+// Shorthand aliases (backward compat for rest of file)
+const { calcMonthlyPayment, calcYearLoanPayment, buildLoanFormula, simulate, findEarliest, c3Returns } = Simulation;
+
+// ══════════════════════════════════════
+// Module: Input
+// ══════════════════════════════════════
+const Input = (() => {
+
+  function initMoney(el, opts) {
+    const { defaultVal = "0", onInput, onBlur } = opts || {};
+    el.addEventListener("focus", () => {
+      if (stripCommas(el.value) === stripCommas(defaultVal)) el.value = "";
+    });
+    el.addEventListener("input", () => {
+      const raw = stripCommas(el.value).replace(/[^\d]/g, "");
+      if (raw === "") { el.value = ""; if (onInput) onInput(0); return; }
+      const pos = el.selectionStart;
+      const beforeLen = el.value.length;
+      el.value = addCommas(raw);
+      const afterLen = el.value.length;
+      el.setSelectionRange(pos + afterLen - beforeLen, pos + afterLen - beforeLen);
+      if (onInput) onInput(+raw);
+    });
+    el.addEventListener("blur", () => {
+      const v = stripCommas(el.value).trim();
+      if (v === "") el.value = defaultVal;
+      else el.value = addCommas(v);
+      if (onBlur) onBlur(+stripCommas(el.value));
+    });
+    el.addEventListener("keydown", (e) => { if (e.key === "Enter") el.blur(); });
+  }
+
+  function initNumber(el, opts) {
+    const { defaultVal = "0", integer = false, min = 0, normalize = false, onInput, onBlur } = opts || {};
+    el.addEventListener("focus", () => {
+      if (el.value === String(defaultVal)) el.value = "";
+    });
+    el.addEventListener("input", () => {
+      if (onInput) onInput(+el.value);
+    });
+    el.addEventListener("blur", () => {
+      if (el.value.trim() === "") { el.value = defaultVal; }
+      else if (normalize) {
+        let v = +el.value;
+        if (isNaN(v)) v = min;
+        v = Math.max(min, v);
+        if (integer) v = Math.round(v);
+        el.value = v;
+      }
+      if (onBlur) onBlur(+el.value);
+    });
+  }
+
+  // Declarative param bindings — add a row to extend
+  const PARAM_BINDINGS = [
+    { id: "p_age",         type: "number", default: "22",      opts: { integer: true }, inputmode: "numeric" },
+    { id: "p_assets",      type: "money",  default: "0" },
+    { id: "p_income",      type: "money",  default: "546,000" },
+    { id: "p_expenses",    type: "money",  default: "320,000" },
+    { id: "p_return",      type: "number", default: "12.5",    opts: {}, inputmode: "decimal" },
+    { id: "p_inflation",   type: "number", default: "3",       opts: {}, inputmode: "decimal" },
+    { id: "p_incGrowRate", type: "number", default: "0",       opts: {}, inputmode: "decimal" },
+    { id: "p_expGrowRate", type: "number", default: "0",       opts: {}, inputmode: "decimal" },
+  ];
+
+  function initParamBindings(debouncedRecalc, blurRecalc, syncReturnVisibility) {
+    for (const b of PARAM_BINDINGS) {
+      const el = document.getElementById(b.id);
+      if (b.type === "money") {
+        initMoney(el, { defaultVal: b.default, onBlur: blurRecalc });
+      } else {
+        const onInput = b.id === "p_return"
+          ? () => { document.getElementById("p_etf").value = ""; syncReturnVisibility(); debouncedRecalc(); }
+          : debouncedRecalc;
+        initNumber(el, {
+          defaultVal: b.default, integer: b.opts?.integer || false, min: 0,
+          onInput, onBlur: blurRecalc
+        });
+      }
+    }
+  }
+
+  return { initMoney, initNumber, PARAM_BINDINGS, initParamBindings };
+})();
+
+// Backward-compat aliases
+const initMoneyInput = Input.initMoney;
+const initNumberInput = Input.initNumber;
+
+// Derived constants from PARAM_BINDINGS
+const DEFAULTS = Object.fromEntries(Input.PARAM_BINDINGS.map(b => [b.id, b.default]));
+const ALL_FIELDS = Input.PARAM_BINDINGS.map(b => b.id);
+const MONEY_FIELDS = Input.PARAM_BINDINGS.filter(b => b.type === "money").map(b => b.id);
+
+// ══════════════════════════════════════
+// Module: Tooltip
+// ══════════════════════════════════════
+const Tooltip = (() => {
+  const hoverMQ = window.matchMedia("(hover: hover)");
+  let activeBubble = null;
+  let hoverTimer = null;
+  let bubbleFromHover = false;
+
+  function remove() {
+    if (activeBubble) { activeBubble.remove(); activeBubble = null; bubbleFromHover = false; }
+  }
+
+  function show(target, text) {
+    const rect = target.getBoundingClientRect();
+    const bubble = document.createElement("div");
+    bubble.className = "tip-bubble";
+    bubble.textContent = text;
+    bubble._owner = target;
+    document.body.appendChild(bubble);
+    const bw = bubble.offsetWidth;
+    let left = rect.left + rect.width / 2 - bw / 2;
+    left = Math.max(8, Math.min(left, window.innerWidth - bw - 8));
+    bubble.style.left = left + "px";
+    bubble.style.top = (rect.top - bubble.offsetHeight - 8 + window.scrollY) + "px";
+    bubble.style.position = "absolute";
+    activeBubble = bubble;
+  }
+
+  function initClickHandler() {
+    document.addEventListener("click", e => {
+      const tip = e.target.closest(".info-tip");
+      const fc = !tip ? e.target.closest("td[data-formula]") : null;
+      const target = tip || fc;
+      // Click elsewhere: dismiss bubble
+      if (!target) { remove(); return; }
+      // Always block label default action for info-tips (prevents
+      // secondary click on associated input which would call remove())
+      if (tip) e.preventDefault();
+      // Cancel pending hover timer — click takes priority
+      clearTimeout(hoverTimer);
+      hoverTimer = null;
+      // Bubble already showing for this target
+      if (activeBubble && activeBubble._owner === target) {
+        // Hover-created bubble: don't toggle off (mouseout handles it)
+        if (bubbleFromHover) return;
+        // Click-created bubble (mobile tap): toggle off
+        remove();
+        return;
+      }
+      // No bubble yet — show via click (mobile tap)
+      remove();
+      show(target, tip ? tip.getAttribute("data-tip") : fc.getAttribute("data-formula"));
+      bubbleFromHover = false;
+    });
+  }
+
+  function initHoverHandler() {
+    // Hover-to-show only for formula cells (info-tips use CSS ::after on desktop)
+    document.addEventListener("mouseover", e => {
+      const td = e.target.closest("td[data-formula]");
+      if (!td || !hoverMQ.matches) return;
+      if (activeBubble && activeBubble._owner === td) return;
+      clearTimeout(hoverTimer);
+      hoverTimer = setTimeout(() => {
+        remove();
+        show(td, td.getAttribute("data-formula"));
+        bubbleFromHover = true;
+        hoverTimer = null;
+      }, 300);
+    });
+    document.addEventListener("mouseout", e => {
+      const td = e.target.closest("td[data-formula]");
+      if (!td) return;
+      if (td.contains(e.relatedTarget)) return;
+      clearTimeout(hoverTimer);
+      hoverTimer = null;
+      if (activeBubble && activeBubble._owner === td) remove();
+    });
+  }
+
+  return { show, remove, init() { initClickHandler(); initHoverHandler(); } };
+})();
+
+// Backward-compat aliases
+const showBubble = Tooltip.show;
+const removeBubble = Tooltip.remove;
+
+// ══════════════════════════════════════
+// Main program
+// ══════════════════════════════════════
 
 // ── Loans state ──
 let loans = [];
@@ -869,23 +1136,19 @@ function restoreLoanMode() {
 
 function migrateLoans(arr) {
   return arr.map(l => {
-    // Old format with monthlyPayment only (no balance) → keep monthlyPayment, set balance/rate to 0
     if (l.monthlyPayment != null && l.balance == null) {
       const months = l.remainingMonths ?? (l.remainingYears != null ? Math.round(l.remainingYears * 12) : 0);
       return { name: l.name, monthlyPayment: l.monthlyPayment, balance: 0, rate: 0, remainingMonths: months };
     }
-    // Old format with remainingYears → convert to months
     if (l.remainingMonths == null && l.remainingYears != null) {
       l = { name: l.name, balance: l.balance || 0, rate: l.rate || 0, remainingMonths: Math.round(l.remainingYears * 12) };
     }
-    // Ensure monthlyPayment field exists
     if (l.monthlyPayment == null) l.monthlyPayment = 0;
     return l;
   });
 }
 
 function restoreLoans() {
-  // URL params take priority
   const sp = new URLSearchParams(window.location.search);
   const urlLoans = sp.get("loans");
   if (urlLoans) {
@@ -915,7 +1178,7 @@ function renderLoanRows() {
       <div class="loan-row simple" data-index="${i}">
         <div><label>名稱</label><input type="text" data-field="name" value="${escAttr(loan.name || "")}"></div>
         <div><label>每月還款 (NT$)</label><input type="text" inputmode="numeric" data-field="monthlyPayment" value="${addCommas(loan.monthlyPayment || 0)}"></div>
-        <div><label>剩餘期數（月）</label><input type="number" data-field="remainingMonths" value="${rm}" min="0" step="1"></div>
+        <div><label>剩餘期數（月）</label><input type="number" inputmode="numeric" data-field="remainingMonths" value="${rm}" min="0" step="1"></div>
         <button type="button" class="loan-remove-btn" title="刪除">&times;</button>
       </div>`;
     } else {
@@ -925,8 +1188,8 @@ function renderLoanRows() {
       <div class="loan-row precise" data-index="${i}">
         <div><label>名稱</label><input type="text" data-field="name" value="${escAttr(loan.name || "")}"></div>
         <div><label>貸款餘額 (NT$)</label><input type="text" inputmode="numeric" data-field="balance" value="${addCommas(loan.balance || 0)}"></div>
-        <div><label>年利率 (%)</label><input type="number" data-field="rate" value="${loan.rate ? +(loan.rate * 100).toFixed(2) : 0}" min="0" step="0.1"></div>
-        <div><label>剩餘期數（月）</label><input type="number" data-field="remainingMonths" value="${rm}" min="0" step="1"></div>
+        <div><label>年利率 (%)</label><input type="number" inputmode="decimal" data-field="rate" value="${loan.rate ? +(loan.rate * 100).toFixed(2) : 0}" min="0" step="0.1"></div>
+        <div><label>剩餘期數（月）</label><input type="number" inputmode="numeric" data-field="remainingMonths" value="${rm}" min="0" step="1"></div>
         <div><label>月付額</label><span class="loan-monthly-display">${mpText}</span></div>
         <button type="button" class="loan-remove-btn" title="刪除">&times;</button>
       </div>`;
@@ -940,7 +1203,6 @@ function bindLoanEvents() {
   document.querySelectorAll(".loan-row").forEach(row => {
     const idx = +row.dataset.index;
 
-    // Remove button
     row.querySelector(".loan-remove-btn").addEventListener("click", () => {
       loans.splice(idx, 1);
       renderLoanRows();
@@ -948,50 +1210,39 @@ function bindLoanEvents() {
       recalculate();
     });
 
-    // Name field
     row.querySelector('input[data-field="name"]').addEventListener("input", (e) => {
       loans[idx].name = e.target.value;
       saveLoans();
     });
 
     if (loanMode === "simple") {
-      // Monthly payment field
       initMoneyInput(row.querySelector('input[data-field="monthlyPayment"]'), {
         defaultVal: "0",
         onInput(v) { loans[idx].monthlyPayment = v; saveLoans(); },
         onBlur(v)  { loans[idx].monthlyPayment = v; saveLoans(); recalculate(); }
       });
-
-      // Remaining months field
       initNumberInput(row.querySelector('input[data-field="remainingMonths"]'), {
         defaultVal: "0", integer: true, normalize: true, min: 0,
         onInput(v) { loans[idx].remainingMonths = v; saveLoans(); },
         onBlur(v)  { loans[idx].remainingMonths = v; saveLoans(); recalculate(); }
       });
     } else {
-      // Helper to update monthly display
       function updateMonthlyDisplay() {
         const display = row.querySelector(".loan-monthly-display");
         const rm = loans[idx].remainingMonths || 0;
         const mp = calcMonthlyPayment(loans[idx].balance || 0, loans[idx].rate || 0, rm / 12);
         display.textContent = mp > 0 ? addCommas(mp) : "—";
       }
-
-      // Balance field
       initMoneyInput(row.querySelector('input[data-field="balance"]'), {
         defaultVal: "0",
         onInput(v) { loans[idx].balance = v; saveLoans(); updateMonthlyDisplay(); },
         onBlur(v)  { loans[idx].balance = v; saveLoans(); updateMonthlyDisplay(); recalculate(); }
       });
-
-      // Rate field
       initNumberInput(row.querySelector('input[data-field="rate"]'), {
         defaultVal: "0", normalize: true, min: 0,
         onInput(v) { loans[idx].rate = v / 100; saveLoans(); updateMonthlyDisplay(); },
         onBlur(v)  { loans[idx].rate = v / 100; saveLoans(); updateMonthlyDisplay(); recalculate(); }
       });
-
-      // Remaining months field
       initNumberInput(row.querySelector('input[data-field="remainingMonths"]'), {
         defaultVal: "0", integer: true, normalize: true, min: 0,
         onInput(v) { loans[idx].remainingMonths = v; saveLoans(); updateMonthlyDisplay(); },
@@ -1002,7 +1253,6 @@ function bindLoanEvents() {
 }
 
 // ── localStorage + URL persistence ──
-const ALL_FIELDS = ["p_age", "p_assets", "p_income", "p_expenses", "p_return", "p_inflation", "p_incGrowRate", "p_expGrowRate"];
 const URL_KEYS = { p_age: "age", p_assets: "assets", p_income: "income", p_expenses: "expenses", p_return: "return", p_inflation: "inflation", p_incGrowRate: "incGrowRate", p_expGrowRate: "expGrowRate" };
 const LS_KEY = "fire_params";
 function saveParams() {
@@ -1025,7 +1275,6 @@ function restoreParams() {
     if (etf != null) {
       document.getElementById("p_etf").value = etf;
     } else if (sp.has(URL_KEYS.p_return)) {
-      // URL has custom return rate but no ETF — set to 自訂
       document.getElementById("p_etf").value = "";
     }
     const urlLoans = sp.get("loans");
@@ -1046,7 +1295,6 @@ function restoreParams() {
     if (!raw) return;
     const data = JSON.parse(raw);
     ALL_FIELDS.forEach(id => { if (data[id] != null) document.getElementById(id).value = data[id]; });
-    // If restored return rate doesn't match any ETF option, switch to 自訂
     const etfEl = document.getElementById("p_etf");
     const retVal = document.getElementById("p_return").value;
     if (etfEl.value && etfEl.value !== retVal) etfEl.value = "";
@@ -1074,7 +1322,6 @@ window.shareURL = function() {
   });
 }
 
-const DEFAULTS = { p_age: "22", p_assets: "0", p_income: "546,000", p_expenses: "320,000", p_return: "12.5", p_inflation: "3", p_incGrowRate: "0", p_expGrowRate: "0" };
 window.resetDefaults = function() {
   Object.entries(DEFAULTS).forEach(([id, val]) => { document.getElementById(id).value = val; });
   document.getElementById("p_etf").value = "12.5";
@@ -1097,47 +1344,6 @@ function showToast(msg) {
   el.classList.add("show");
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => el.classList.remove("show"), 2000);
-}
-
-// ── Main param input bindings (via unified helpers) ──
-function initParamBindings() {
-  const debouncedRecalc = () => { saveParams(); clearTimeout(debounceTimer); debounceTimer = setTimeout(recalculate, 300); };
-  const blurRecalc = () => { saveParams(); recalculate(); };
-
-  // Money fields: p_assets, p_income, p_expenses
-  MONEY_FIELDS.forEach(id => {
-    initMoneyInput(document.getElementById(id), {
-      defaultVal: DEFAULTS[id] || "0",
-      onBlur: blurRecalc
-    });
-  });
-
-  // Number fields
-  initNumberInput(document.getElementById("p_age"), {
-    defaultVal: DEFAULTS.p_age, integer: true, min: 0,
-    onInput: debouncedRecalc,
-    onBlur: blurRecalc
-  });
-  initNumberInput(document.getElementById("p_return"), {
-    defaultVal: DEFAULTS.p_return, min: 0,
-    onInput() { document.getElementById("p_etf").value = ""; syncReturnVisibility(); debouncedRecalc(); },
-    onBlur: blurRecalc
-  });
-  initNumberInput(document.getElementById("p_inflation"), {
-    defaultVal: DEFAULTS.p_inflation, min: 0,
-    onInput: debouncedRecalc,
-    onBlur: blurRecalc
-  });
-  initNumberInput(document.getElementById("p_incGrowRate"), {
-    defaultVal: DEFAULTS.p_incGrowRate, min: 0,
-    onInput: debouncedRecalc,
-    onBlur: blurRecalc
-  });
-  initNumberInput(document.getElementById("p_expGrowRate"), {
-    defaultVal: DEFAULTS.p_expGrowRate, min: 0,
-    onInput: debouncedRecalc,
-    onBlur: blurRecalc
-  });
 }
 
 function syncReturnVisibility() {
@@ -1163,7 +1369,10 @@ function syncReturnVisibility() {
 }
 
 // Bind main param inputs, then restore saved / URL params
-initParamBindings();
+let debounceTimer;
+const debouncedRecalc = () => { saveParams(); clearTimeout(debounceTimer); debounceTimer = setTimeout(recalculate, 300); };
+const blurRecalc = () => { saveParams(); recalculate(); };
+Input.initParamBindings(debouncedRecalc, blurRecalc, syncReturnVisibility);
 restoreParams();
 restoreLoanMode();
 restoreLoans();
@@ -1235,113 +1444,6 @@ function getParams() {
   };
 }
 
-function calcMonthlyPayment(balance, annualRate, years) {
-  if (balance <= 0 || years <= 0) return 0;
-  if (annualRate <= 0) return Math.round(balance / (years * 12));
-  const r = annualRate / 12;
-  const n = years * 12;
-  return Math.round(balance * r * Math.pow(1 + r, n) / (Math.pow(1 + r, n) - 1));
-}
-
-function calcYearLoanPayment(loans, yearIndex, mode) {
-  if (!loans || !loans.length) return 0;
-  let total = 0;
-  const monthStart = yearIndex * 12;
-  for (const loan of loans) {
-    const rm = loan.remainingMonths || 0;
-    const active = Math.max(0, Math.min(12, rm - monthStart));
-    const mp = mode === "simple"
-      ? (loan.monthlyPayment || 0)
-      : calcMonthlyPayment(loan.balance, loan.rate, rm / 12);
-    total += mp * active;
-  }
-  return total;
-}
-
-function escAttr(s) {
-  return s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-}
-
-function buildLoanFormula(loans, yearIndex, mode) {
-  if (!loans || !loans.length) return "";
-  const monthStart = yearIndex * 12;
-  const parts = [];
-  let total = 0;
-  for (const loan of loans) {
-    const rm = loan.remainingMonths || 0;
-    const active = Math.max(0, Math.min(12, rm - monthStart));
-    if (active <= 0) continue;
-    const mp = mode === "simple"
-      ? (loan.monthlyPayment || 0)
-      : calcMonthlyPayment(loan.balance, loan.rate, rm / 12);
-    const loanTotal = mp * active;
-    total += loanTotal;
-    parts.push(`${loan.name}: ${addCommas(Math.round(mp))}/月 × ${active}月 = ${addCommas(Math.round(loanTotal))}`);
-  }
-  if (parts.length === 0) return "";
-  if (parts.length === 1) return parts[0];
-  return parts.join("\n") + "\n合計 " + addCommas(Math.round(total));
-}
-
-function simulate(retireAge, p, customReturn, incomeOverride, loans, lMode) {
-  const nr = customReturn ?? p.nomReturn;
-  const deathAge = p.deathAge;
-  const startAge = p.startAge ?? currentAge();
-  let portfolio = p.assets;
-  let minPort = portfolio;
-  const ages = [], reals = [], nominals = [];
-  const yearIncomes = [], yearExpenses = [], yearReturns = [], yearLoanPayments = [];
-
-  for (let age = startAge; age <= deathAge; age++) {
-    const year = CURRENT_YEAR + (age - startAge);
-    const inf = Math.pow(1 + p.inflation, age - startAge);
-
-    ages.push(age);
-    reals.push(portfolio / inf);
-    nominals.push(portfolio);
-
-    if (age === deathAge) { yearIncomes.push(0); yearExpenses.push(0); yearReturns.push(0); yearLoanPayments.push(0); break; }
-
-    const ret = portfolio > 0 ? portfolio * nr : 0;
-    yearReturns.push(ret);
-    if (portfolio > 0) portfolio *= (1 + nr);
-    const expGrow = p.expGrowRate ? Math.pow(1 + p.expGrowRate, age - startAge) : 1;
-    const exp = p.expenses * inf * expGrow;
-    const loanPay = calcYearLoanPayment(loans || [], age - startAge, lMode);
-    yearLoanPayments.push(loanPay);
-
-    if (age < retireAge) {
-      let inc = p.income;
-      let incGrowthYears = age - startAge;
-      if (incomeOverride && age >= incomeOverride.startAge) {
-        inc = incomeOverride.amount;
-        incGrowthYears = age - incomeOverride.startAge;
-      }
-      const incAdj = inc * Math.pow(1 + p.incGrowRate, incGrowthYears);
-      yearIncomes.push(incAdj);
-      yearExpenses.push(exp);
-      portfolio += incAdj - exp - loanPay;
-    } else {
-      yearIncomes.push(0);
-      yearExpenses.push(exp);
-      portfolio -= exp + loanPay;
-    }
-    minPort = Math.min(minPort, portfolio);
-  }
-
-  return { ages, reals, nominals, minPort, feasible: minPort >= 0, yearIncomes, yearExpenses, yearReturns, yearLoanPayments };
-}
-
-function findEarliest(p, customReturn, incomeOverride, loans, lMode) {
-  const lifeP = { ...p, deathAge: AVG_LIFESPAN };
-  const start = p.startAge ?? currentAge();
-  for (let ra = start; ra < AVG_LIFESPAN; ra++) {
-    const res = simulate(ra, lifeP, customReturn, incomeOverride, loans, lMode);
-    if (res.feasible) return ra;
-  }
-  return null;
-}
-
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 //  Crosshair plugin
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1378,14 +1480,6 @@ Chart.register(crosshairPlugin);
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 //  Legend hover highlight helpers
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-function hexAlpha(hex, a) {
-  const c = hex.replace("#", "");
-  const r = parseInt(c.substring(0, 2), 16);
-  const g = parseInt(c.substring(2, 4), 16);
-  const b = parseInt(c.substring(4, 6), 16);
-  return `rgba(${r},${g},${b},${a})`;
-}
-
 function legendHover(evt, legendItem, legend) {
   const ci = legendItem.datasetIndex;
   legend.chart.data.datasets.forEach((ds, i) => {
@@ -1511,10 +1605,6 @@ function destroyAll() { Object.values(charts).forEach(c => c.destroy()); charts 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 //  Chart 3: draggable retirement-age line + income bar
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-function c3Returns(p) {
-  const base = p.nomReturn;
-  return [base - 0.02, base, base + 0.02];
-}
 const C3_COLORS = [CHART_COLORS.red, CHART_COLORS.amber, CHART_COLORS.green];
 const C3_LABELS = ["悲觀", "基準", "樂觀"];
 
@@ -2037,8 +2127,8 @@ function renderYearlyTable(p, retireAge) {
       } else {
         const prevExp = Math.round(r.yearExpenses[i - 1]);
         if (p.expGrowRate > 0) {
-          const combinedMult = prevExp > 0 ? parseFloat((exp_i / prevExp).toFixed(4)) : inflMult;
-          expF = "前年 " + addCommas(prevExp) + " × " + combinedMult + "\n= " + addCommas(exp_i);
+          const expGrowMult = parseFloat((1 + p.expGrowRate).toFixed(4));
+          expF = "前年 " + addCommas(prevExp) + "\n× 通膨 " + inflMult + " × 支出成長 " + expGrowMult + "\n= " + addCommas(exp_i);
         } else {
           expF = "前年 " + addCommas(prevExp) + " × " + inflMult + "\n= " + addCommas(exp_i);
         }
@@ -2072,7 +2162,6 @@ function renderYearlyTable(p, retireAge) {
   document.getElementById("yearlyTableWrap").style.display = "";
 }
 
-let debounceTimer;
 function recalculate() {
   if (!validateAll()) return;
   const p = getParams();
@@ -2106,51 +2195,8 @@ document.getElementById("p_etf").addEventListener("change", function() {
   debounceTimer = setTimeout(recalculate, 300);
 });
 
-// ── Tooltip: click to toggle (mobile uses DOM bubble, desktop uses CSS ::after) ──
-const hoverMQ = window.matchMedia("(hover: hover)");
-let activeBubble = null;
-function removeBubble() {
-  if (activeBubble) { activeBubble.remove(); activeBubble = null; }
-}
-function showBubble(target, text) {
-  const rect = target.getBoundingClientRect();
-  const bubble = document.createElement("div");
-  bubble.className = "tip-bubble";
-  bubble.textContent = text;
-  bubble._owner = target;
-  document.body.appendChild(bubble);
-  const bw = bubble.offsetWidth;
-  let left = rect.left + rect.width / 2 - bw / 2;
-  left = Math.max(8, Math.min(left, window.innerWidth - bw - 8));
-  bubble.style.left = left + "px";
-  bubble.style.top = (rect.top - bubble.offsetHeight - 8 + window.scrollY) + "px";
-  bubble.style.position = "absolute";
-  activeBubble = bubble;
-}
-document.addEventListener("click", e => {
-  const tip = e.target.closest(".info-tip");
-  const fc = !tip ? e.target.closest("td[data-formula]") : null;
-  const target = tip || fc;
-  if (!target) { removeBubble(); return; }
-  if (activeBubble && activeBubble._owner === target) { removeBubble(); return; }
-  removeBubble();
-  if (hoverMQ.matches) return;
-  showBubble(target, tip ? tip.getAttribute("data-tip") : fc.getAttribute("data-formula"));
-});
-// ── Formula tooltip: desktop hover ──
-document.addEventListener("mouseover", e => {
-  const td = e.target.closest("td[data-formula]");
-  if (!td || !hoverMQ.matches) return;
-  if (activeBubble && activeBubble._owner === td) return;
-  removeBubble();
-  showBubble(td, td.getAttribute("data-formula"));
-});
-document.addEventListener("mouseout", e => {
-  const td = e.target.closest("td[data-formula]");
-  if (!td) return;
-  if (td.contains(e.relatedTarget)) return;
-  if (activeBubble && activeBubble._owner === td) removeBubble();
-});
+// ── Tooltip: init click + hover handlers from module ──
+Tooltip.init();
 
 // Initial render
 recalculate();
